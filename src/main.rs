@@ -1,120 +1,114 @@
-use std::{collections::HashMap, ops::Neg};
+use std::{
+  cmp::min,
+  collections::HashMap,
+  ops::{Div, Neg},
+};
 
-#[derive(Default, Clone, Debug)]
-struct Connections(HashMap<u32, HashMap<u32, Dir>>);
+use pairhashmap::PairHashMap;
 
-impl Connections {
-  pub fn new() -> Connections {
-    <_>::default()
-  }
-  pub fn add(&mut self, a: u32, b: u32, dir: Dir) {
-    self.0.entry(a).or_insert_with(<_>::default).insert(b, dir);
-    self.0.entry(b).or_insert_with(<_>::default).insert(a, -dir);
-  }
-  pub fn remove(&mut self, a: u32, b: u32) {
-    self.0.entry(a).and_modify(|x| {
-      x.remove(&b);
-    });
-    self.0.entry(b).and_modify(|x| {
-      x.remove(&a);
-    });
-  }
-}
+mod pairhashmap;
 
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 struct Division {
   regions: u32,
-  connections: Connections,
+  connections: PairHashMap<Node, ()>,
 }
 
-struct DivideIter {
-  division: Division,
-  region_ind: u32,
-  dir: u8,
-  cut_ind_0: u32,
-  cut_ind_1: u32,
-}
-
-impl DivideIter {
-  pub fn new(division: Division) -> DivideIter {
-    DivideIter {
-      division,
-      region_ind: 0,
-      dir: 0,
-      cut_ind_0: 0,
-      cut_ind_1: 0,
+impl Default for Division {
+  fn default() -> Self {
+    Division {
+      regions: 1,
+      connections: {
+        let mut connections = PairHashMap::new();
+        for i in 0..4 {
+          connections.add(Border(i), Region(0), ());
+          connections.add(Border(i), Border((i + 1) % 4), ());
+        }
+        connections
+      },
     }
   }
 }
 
-impl Iterator for DivideIter {
-  type Item = Division;
-  fn next(&mut self) -> Option<Self::Item> {
-    loop {
-      if self.region_ind >= self.division.regions {
-        return None;
-      }
-      let edges = self.division.connections.0.get(&self.region_ind).unwrap();
-      if self.dir >= 2 {
-        self.dir = 0;
-        self.region_ind += 1;
-        continue;
-      }
-      let dir_0 = (self.dir, 0).into();
-      let count_0 = edges.iter().filter(|x| *x.1 == dir_0).count() as u32;
-      let max_cut_ind_0 = if count_0 == 0 { 1 } else { count_0 * 2 - 1 };
-      if self.cut_ind_0 >= max_cut_ind_0 {
-        self.cut_ind_0 = 0;
-        self.dir += 1;
-        continue;
-      }
-      let dir_1 = (self.dir, 0).into();
-      let count_1 = edges.iter().filter(|x| *x.1 == dir_1).count() as u32;
-      let max_cut_ind_1 = if count_1 == 0 { 1 } else { count_1 * 2 - 1 };
-      if self.cut_ind_1 >= max_cut_ind_1 {
-        self.cut_ind_1 = 0;
-        self.cut_ind_0 += 1;
-        continue;
-      }
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+enum Node {
+  Border(u8),
+  Region(u32),
+}
 
-      let chunk
+use Node::*;
 
-
-      self.cut_ind_1 += 1;
+fn foo(div: Division, mut cb: impl FnMut(Division)) {
+  for region in 0..div.regions {
+    let connected_nodes = {
+      let set = div.connections.get_all(&Region(region)).unwrap();
+      let mut vec = vec![];
+      let mut cur = *set.keys().next().unwrap();
+      loop {
+        if Some(&cur) == vec.get(0) {
+          break;
+        }
+        let new_cur = *div
+          .connections
+          .get_all(&cur)
+          .unwrap()
+          .keys()
+          .chain(
+            div
+              .connections
+              .get_all(&cur)
+              .unwrap()
+              .keys()
+              .flat_map(|x| div.connections.get_all(&x).unwrap().keys()),
+          )
+          .find(|x| set.contains_key(x) && Some(*x) != vec.last())
+          .unwrap();
+        vec.push(cur);
+        cur = new_cur;
+      }
+      vec
+    };
+    for cut_ind_0 in 0..connected_nodes.len() {
+      let cut_ind_1_min = cut_ind_0 + 2;
+      let cut_ind_1_max = min(
+        connected_nodes.len() - 1,
+        connected_nodes.len() + cut_ind_0 - 2,
+      );
+      for cut_ind_1 in cut_ind_1_min..=cut_ind_1_max {
+        dbg!((cut_ind_0, cut_ind_1));
+        let must_share_0 = cut_ind_1 - cut_ind_0 < 3;
+        let must_share_1 = cut_ind_0 + connected_nodes.len() - cut_ind_1 < 3;
+        for share_0 in [true, false] {
+          if must_share_0 && !share_0 {
+            continue;
+          }
+          for share_1 in [true, false] {
+            if must_share_1 && !share_1 {
+              continue;
+            }
+            let new_region = div.regions;
+            let mut new_connections = div.connections.clone();
+            for i in cut_ind_0..cut_ind_1 + share_1 as usize {
+              new_connections.remove(&Region(region), &connected_nodes[i]);
+            }
+            for i in (cut_ind_1..connected_nodes.len()).chain(0..cut_ind_0 + share_0 as usize) {
+              new_connections.add(Region(new_region), connected_nodes[i], ());
+            }
+            let div = Division {
+              regions: div.regions + 1,
+              connections: new_connections,
+            };
+            cb(div);
+          }
+        }
+      }
     }
   }
 }
 
-fn main() {}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-enum Dir {
-  N,
-  S,
-  E,
-  W,
-}
-
-impl Neg for Dir {
-  type Output = Dir;
-  fn neg(self) -> Self::Output {
-    match self {
-      Dir::N => Dir::S,
-      Dir::S => Dir::N,
-      Dir::E => Dir::W,
-      Dir::W => Dir::E,
-    }
-  }
-}
-
-impl From<(u8, u8)> for Dir {
-  fn from((axis, pos): (u8, u8)) -> Self {
-    match (axis, pos) {
-      (0, 0) => Dir::W,
-      (0, 1) => Dir::E,
-      (1, 0) => Dir::N,
-      (1, 1) => Dir::S,
-      _ => panic!("Invalid (axis, pos) pair"),
-    }
-  }
+fn main() {
+  let root = Division::default();
+  foo(root, |x| {
+    dbg!(x);
+  });
 }
