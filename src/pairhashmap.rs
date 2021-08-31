@@ -1,3 +1,4 @@
+use std::collections::binary_heap::Iter;
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -29,6 +30,9 @@ impl<K: Hash + Eq + Clone, V: Clone> PairHashMap<K, V> {
   }
   pub fn get(&self, key_a: &K, key_b: &K) -> Option<&V> {
     self.0.get(key_a).and_then(|x| x.get(key_b))
+  }
+  pub fn keys(&self) -> impl Iterator<Item = &K> {
+    self.0.keys()
   }
 }
 
