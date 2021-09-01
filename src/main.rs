@@ -1,6 +1,7 @@
 use std::{
   cmp::min,
   collections::{hash_map::DefaultHasher, HashMap, HashSet},
+  fmt::Debug,
   hash::{Hash, Hasher},
   ops::{Div, Index, Neg},
 };
@@ -46,10 +47,19 @@ impl PartialEq for Division {
 
 impl Eq for Division {}
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
 enum Node {
   Border(u8),
   Region(u32),
+}
+
+impl Debug for Node {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Border(x) => write!(f, "b{}", x),
+      Region(x) => write!(f, "r{}", x),
+    }
+  }
 }
 
 use Node::*;
@@ -96,19 +106,11 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
 }
 
 fn main() {
-  let mut set = HashSet::new();
-  set.insert(Division::default());
-  let mut new_set = HashSet::new();
-  for _ in 0..10 {
-    println!("{}", set.len());
-    new_set.clear();
-    for div in set.drain() {
-      foo(div, |x| {
-        new_set.insert(x);
-      });
-    }
-    std::mem::swap(&mut set, &mut new_set);
-  }
+  let mut y = None;
+  foo(Division::default(), |x| {
+    y = Some(x);
+  });
+  check_valid(&y.unwrap());
 }
 
 fn get_connected_nodes(node: Node, connections: &PairHashMap<Node, ()>) -> Vec<Node> {
@@ -265,5 +267,68 @@ fn hash_division(div: &Division) -> u64 {
       Either::Right((start + 1..vec.len()).chain(0..=start).rev())
     }
     .map(move |i| vec[i])
+  }
+}
+
+fn check_valid(div: &Division) -> bool {
+  dbg!(div);
+  struct State<'a> {
+    edge_labels: PairHashMap<Node, bool>,
+    div: &'a Division,
+    ambiguous_edges: Vec<(Node, Node)>,
+  }
+  type Result = std::result::Result<(), ()>;
+  let mut state = State {
+    edge_labels: PairHashMap::new(),
+    ambiguous_edges: vec![],
+    div,
+  };
+  for border_n in 0..4 {
+    for node in div.connections.get_all(&Border(border_n)).unwrap().keys() {
+      add_label(
+        &mut state,
+        Border(border_n),
+        *node,
+        matches!(node, Border(_)) || border_n % 2 == 0,
+      )
+      .unwrap();
+    }
+  }
+  dbg!(state.edge_labels);
+  return true;
+
+  fn add_label(state: &mut State, a: Node, b: Node, label: bool) -> Result {
+    if let Some(prev_label) = state.edge_labels.add(a, b, label) {
+      return if label == prev_label { Ok(()) } else { Err(()) };
+    }
+    for &c in state
+      .div
+      .connections
+      .get_all(&a)
+      .unwrap()
+      .keys()
+      .filter(|c| state.div.connections.get(&b, c).is_some())
+      .collect::<Vec<_>>()
+    {
+      let a_leg = state.edge_labels.get(&a, &c);
+      let b_leg = state.edge_labels.get(&b, &c);
+      match (label, a_leg, b_leg) {
+        (_, None, None) => Ok(()),
+        (true, Some(true), None) => add_label(state, b, c, false),
+        (false, Some(false), None) => add_label(state, b, c, true),
+        (true, None, Some(true)) => add_label(state, a, c, false),
+        (false, None, Some(false)) => add_label(state, a, c, true),
+        (a, Some(&b), Some(&c)) => {
+          if (a as u8 + b as u8 + c as u8) % 3 != 0 {
+            Ok(())
+          } else {
+            Err(())
+          }
+        }
+        (_, Some(_), None) => Ok(state.ambiguous_edges.push((b, c))),
+        (_, None, Some(_)) => Ok(state.ambiguous_edges.push((a, c))),
+      }?;
+    }
+    Ok(())
   }
 }

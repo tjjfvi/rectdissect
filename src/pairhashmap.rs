@@ -1,29 +1,33 @@
-use std::collections::binary_heap::Iter;
 use std::collections::HashMap;
 use std::hash::Hash;
 
 #[derive(Clone, Debug)]
-pub struct PairHashMap<K, V>(HashMap<K, HashMap<K, V>>);
+pub struct PairHashMap<K, V>(HashMap<K, HashMap<K, V>>, usize);
 
 impl<K: Hash + Eq + Clone, V: Clone> PairHashMap<K, V> {
   pub fn new() -> PairHashMap<K, V> {
-    PairHashMap(HashMap::new())
+    PairHashMap(HashMap::new(), 0)
   }
-  pub fn add(&mut self, key_a: K, key_b: K, value: V) {
-    self
+  pub fn add(&mut self, key_a: K, key_b: K, value: V) -> Option<V> {
+    self.1 += self
       .0
       .entry(key_a.clone())
       .or_insert_with(<_>::default)
-      .insert(key_b.clone(), value.clone());
+      .insert(key_b.clone(), value.clone())
+      .is_none() as usize;
     self
       .0
       .entry(key_b)
       .or_insert_with(<_>::default)
-      .insert(key_a, value);
+      .insert(key_a, value)
   }
-  pub fn remove(&mut self, key_a: &K, key_b: &K) {
-    self.0.get_mut(key_a).map(|x| x.remove(key_b));
-    self.0.get_mut(key_b).map(|x| x.remove(key_a));
+  pub fn remove(&mut self, key_a: &K, key_b: &K) -> Option<V> {
+    self.1 -= self
+      .0
+      .get_mut(key_a)
+      .and_then(|x| x.remove(key_b))
+      .is_some() as usize;
+    self.0.get_mut(key_b).and_then(|x| x.remove(key_a))
   }
   pub fn get_all(&self, key: &K) -> Option<&HashMap<K, V>> {
     self.0.get(key)
