@@ -2,9 +2,10 @@ use std::{
   cmp::min,
   collections::{hash_map::DefaultHasher, HashMap, HashSet},
   hash::{Hash, Hasher},
-  ops::{Div, Neg},
+  ops::{Div, Index, Neg},
 };
 
+use either::Either;
 use pairhashmap::PairHashMap;
 
 mod pairhashmap;
@@ -17,31 +18,7 @@ struct Division {
 
 impl Hash for Division {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-    let mut hash = u64::MAX;
-    let mut done_nodes = HashSet::new();
-    for &node_0 in self.connections.keys() {
-      done_nodes.insert(node_0);
-      for &node_1 in self.connections.get_all(&node_0).unwrap().keys() {
-        if done_nodes.contains(&node_1) {
-          continue;
-        }
-        let hasher = DefaultHasher::new();
-        let mut last_node = node_0;
-        let mut cur_node = node_1;
-        let next_node_id = 2;
-        let mut node_id_map = HashMap::new();
-        node_id_map.insert(node_0, 0);
-        node_id_map.insert(node_1, 1);
-        let next_node_id = 2;
-        let mut visisted_edges = HashSet::new();
-        visisted_edges.insert((node_0, node_1));
-        let new_hash = hasher.finish();
-        if new_hash < hash {
-          hash = new_hash
-        }
-      }
-    }
-    state.write_u64(hash)
+    state.write_u64(hash_division(self));
   }
 }
 
@@ -61,6 +38,14 @@ impl Default for Division {
   }
 }
 
+impl PartialEq for Division {
+  fn eq(&self, other: &Self) -> bool {
+    hash_division(self) == hash_division(other)
+  }
+}
+
+impl Eq for Division {}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 enum Node {
   Border(u8),
@@ -79,7 +64,6 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
         connected_nodes.len() + cut_ind_0 - 2,
       );
       for cut_ind_1 in cut_ind_1_min..=cut_ind_1_max {
-        dbg!((cut_ind_0, cut_ind_1));
         let must_share_0 = cut_ind_1 - cut_ind_0 < 3;
         let must_share_1 = cut_ind_0 + connected_nodes.len() - cut_ind_1 < 3;
         for share_0 in [true, false] {
@@ -92,12 +76,13 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
             }
             let new_region = div.regions;
             let mut new_connections = div.connections.clone();
-            for i in cut_ind_0..cut_ind_1 + share_1 as usize {
+            for i in cut_ind_0 + share_0 as usize..cut_ind_1 {
               new_connections.remove(&Region(region), &connected_nodes[i]);
             }
-            for i in (cut_ind_1..connected_nodes.len()).chain(0..cut_ind_0 + share_0 as usize) {
+            for i in cut_ind_0..cut_ind_1 + share_1 as usize {
               new_connections.add(Region(new_region), connected_nodes[i], ());
             }
+            new_connections.add(Region(region), Region(new_region), ());
             let div = Division {
               regions: div.regions + 1,
               connections: new_connections,
@@ -111,30 +96,45 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
 }
 
 fn main() {
-  let root = Division::default();
-  foo(root, |x| {
-    dbg!(x);
-  });
+  let mut set = HashSet::new();
+  set.insert(Division::default());
+  let mut new_set = HashSet::new();
+  for _ in 0..10 {
+    println!("{}", set.len());
+    new_set.clear();
+    for div in set.drain() {
+      foo(div, |x| {
+        new_set.insert(x);
+      });
+    }
+    std::mem::swap(&mut set, &mut new_set);
+  }
 }
 
 fn get_connected_nodes(node: Node, connections: &PairHashMap<Node, ()>) -> Vec<Node> {
   _get_connected_nodes(
     node,
     connections,
-    *connections.get_all(&node).unwrap().keys().next().unwrap(),
+    vec![*connections.get_all(&node).unwrap().keys().next().unwrap()],
   )
 }
 
-fn _get_connected_nodes(node: Node, connections: &PairHashMap<Node, ()>, first: Node) -> Vec<Node> {
+fn _get_connected_nodes(
+  node: Node,
+  connections: &PairHashMap<Node, ()>,
+  mut vec: Vec<Node>,
+) -> Vec<Node> {
   let set = connections.get_all(&node).unwrap();
-  let mut vec = vec![];
-  let mut cur = first;
-  loop {
-    if Some(&cur) == vec.get(0) {
-      break;
+  let mut reverse = false;
+  for _ in 0..set.len() - vec.len() {
+    let mut cur = vec.last().unwrap();
+    if matches!((node, cur), (Border(_), Border(_))) {
+      vec.reverse();
+      reverse = !reverse;
+      cur = vec.last().unwrap();
     }
-    let new_cur = *connections
-      .get_all(&cur)
+    let new = *connections
+      .get_all(cur)
       .unwrap()
       .keys()
       .chain(
@@ -144,10 +144,126 @@ fn _get_connected_nodes(node: Node, connections: &PairHashMap<Node, ()>, first: 
           .keys()
           .flat_map(|x| connections.get_all(&x).unwrap().keys()),
       )
-      .find(|x| set.contains_key(x) && Some(*x) != vec.last())
+      .find(|x| set.contains_key(x) && !vec.contains(x))
       .unwrap();
-    vec.push(cur);
-    cur = new_cur;
+    vec.push(new);
+  }
+  debug_assert_eq!(vec.len(), set.len());
+  debug_assert_eq!(vec.iter().collect::<HashSet<_>>().len(), vec.len());
+  if reverse {
+    vec.reverse();
   }
   vec
+}
+
+fn get_embedding(div: &Division) -> HashMap<Node, Vec<Node>> {
+  let mut embedding = HashMap::new();
+
+  let mut todo = vec![];
+  {
+    let node = Region(0);
+    todo.push((
+      node,
+      vec![
+        *div
+          .connections
+          .get_all(&node)
+          .unwrap()
+          .iter()
+          .next()
+          .unwrap()
+          .0,
+      ],
+    ));
+  }
+  while let Some((node, vec)) = todo.pop() {
+    let vec = _get_connected_nodes(node, &div.connections, vec);
+    for (i, &next) in vec.iter().enumerate() {
+      if embedding.contains_key(&next) {
+        continue;
+      }
+      let prev = vec[(if i == 0 { vec.len() } else { i }) - 1];
+      todo.push((
+        next,
+        vec![
+          node,
+          if div.connections.get(&next, &prev).is_some() {
+            prev
+          } else {
+            *div
+              .connections
+              .get_all(&next)
+              .unwrap()
+              .iter()
+              .map(|x| x.0)
+              .find(|x| div.connections.get(x, &prev).is_some() && **x != node)
+              .unwrap()
+          },
+        ],
+      ))
+    }
+    embedding.insert(node, vec);
+  }
+  embedding
+}
+
+fn hash_division(div: &Division) -> u64 {
+  let mut hash = u64::MAX;
+  let embedding = get_embedding(div);
+  for &node_0 in div.connections.keys() {
+    for &node_1 in div.connections.get_all(&node_0).unwrap().keys() {
+      for dir in [true, false] {
+        let mut hasher = DefaultHasher::new();
+        let mut last_node = node_0;
+        let mut cur_node = node_1;
+        let mut node_id_map = HashMap::new();
+        node_id_map.insert(node_0, 0);
+        let mut node_id_max = 0;
+        let mut visited_edges = HashSet::new();
+        visited_edges.insert((last_node, cur_node));
+        loop {
+          let cur_node_id = *node_id_map.entry(cur_node).or_insert_with(|| {
+            node_id_max += 1;
+            node_id_max
+          });
+          hasher.write_u32(cur_node_id);
+          let visited = cur_node_id != node_id_max;
+          let mut next_node = None;
+          for node in next_node_candidates(&embedding, dir, cur_node, last_node) {
+            if (visited || node != last_node) && visited_edges.insert((cur_node, node)) {
+              next_node = Some(node);
+              break;
+            }
+          }
+          if let Some(next_node) = next_node {
+            last_node = cur_node;
+            cur_node = next_node;
+          } else {
+            break;
+          }
+        }
+        debug_assert_eq!(cur_node, node_0);
+        let new_hash = hasher.finish();
+        if new_hash < hash {
+          hash = new_hash
+        }
+      }
+    }
+  }
+  return hash;
+  fn next_node_candidates<'a>(
+    embedding: &'a HashMap<Node, Vec<Node>>,
+    dir: bool,
+    from: Node,
+    start: Node,
+  ) -> impl Iterator<Item = Node> + 'a {
+    let vec = embedding.get(&from).unwrap();
+    let start = vec.iter().position(|x| *x == start).unwrap();
+    if dir {
+      Either::Left((start..vec.len()).chain(0..start))
+    } else {
+      Either::Right((start + 1..vec.len()).chain(0..=start).rev())
+    }
+    .map(move |i| vec[i])
+  }
 }
