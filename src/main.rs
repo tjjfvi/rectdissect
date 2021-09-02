@@ -106,11 +106,15 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
 }
 
 fn main() {
-  let mut y = None;
-  foo(Division::default(), |x| {
-    y = Some(x);
+  let mut x = Division::default();
+  foo(Division::default(), |y| {
+    x = y;
   });
-  check_valid(&y.unwrap());
+  let mut y = Division::default();
+  foo(x, |z| {
+    y = z;
+  });
+  check_valid(&y);
 }
 
 fn get_connected_nodes(node: Node, connections: &PairHashMap<Node, ()>) -> Vec<Node> {
@@ -329,6 +333,93 @@ fn check_valid(div: &Division) -> bool {
         (_, None, Some(_)) => Ok(state.ambiguous_edges.push((a, c))),
       }?;
     }
-    Ok(())
+    check_node(state, a)?;
+    check_node(state, b)?;
+    return Ok(());
+
+    fn check_node(state: &mut State, node: Node) -> Result {
+      if !matches!(node, Region(_)) {
+        return Ok(());
+      }
+      let mut vec_true = vec![];
+      let mut vec_false = vec![];
+      let mut vec_none = vec![];
+      for &connected_node in state.div.connections.get_all(&node).unwrap().keys() {
+        let vec = match state.edge_labels.get(&node, &connected_node) {
+          Some(true) => &mut vec_true,
+          Some(false) => &mut vec_false,
+          None => &mut vec_none,
+        };
+        vec.push(connected_node);
+      }
+      if vec_true.len() + vec_none.len() < 2 || vec_false.len() + vec_none.len() < 2 {
+        return Err(());
+      }
+      if vec_none.len() != 0 {
+        if vec_true.len() + vec_none.len() == 2 {
+          println!("hi");
+          for &connected_node in &vec_none {
+            add_label(state, node, connected_node, true)?;
+          }
+          return Ok(());
+        }
+        if vec_true.len() + vec_none.len() == 2 {
+          println!("hi");
+          for &connected_node in &vec_none {
+            add_label(state, node, connected_node, false)?;
+          }
+          return Ok(());
+        }
+      }
+      if vec_true.len() == 0 || vec_false.len() == 0 {
+        return Ok(());
+      }
+      let (mut vec_true_0, mut vec_true_1) = segregate(state, vec_true);
+      let (mut vec_false_0, mut vec_false_1) = segregate(state, vec_false);
+      dbg!(&vec_true_0, &vec_true_1, &vec_false_0, &vec_false_1);
+      let mut empty_vecs_iter = <_>::into_iter([
+        (&mut vec_true_0, true),
+        (&mut vec_true_1, true),
+        (&mut vec_false_0, false),
+        (&mut vec_false_1, false),
+      ])
+      .filter(|x| x.0.len() == 0);
+      if vec_none.len() < 2 {
+        if let Some((_, label)) = empty_vecs_iter.next() {
+          if vec_none.len() == 0 {
+            return Err(());
+          } else {
+            return add_label(state, node, vec_none[0], label);
+          }
+        }
+      } else {
+        if vec_none.len() < empty_vecs_iter.count() {
+          return Err(());
+        }
+      }
+      return Ok(());
+      fn segregate(state: &mut State, mut vec: Vec<Node>) -> (Vec<Node>, Vec<Node>) {
+        let mut vec_0 = vec![];
+        let mut edges = vec![vec.pop().unwrap()];
+        let mut new_edges = vec![];
+        while edges.len() != 0 {
+          new_edges.clear();
+          for &node in &vec {
+            if edges
+              .iter()
+              .any(|&edge| state.div.connections.get(&node, &edge).is_some())
+            {
+              new_edges.push(node);
+            }
+          }
+          if edges.len() != 0 {
+            vec.retain(|x| !new_edges.contains(x));
+          }
+          vec_0.extend(edges.drain(..));
+          std::mem::swap(&mut edges, &mut new_edges);
+        }
+        (vec_0, vec)
+      }
+    }
   }
 }
