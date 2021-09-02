@@ -47,7 +47,7 @@ impl PartialEq for Division {
 
 impl Eq for Division {}
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 enum Node {
   Border(u8),
   Region(u32),
@@ -74,8 +74,8 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
         connected_nodes.len() + cut_ind_0 - 2,
       );
       for cut_ind_1 in cut_ind_1_min..=cut_ind_1_max {
-        let must_share_0 = cut_ind_1 - cut_ind_0 < 3;
-        let must_share_1 = cut_ind_0 + connected_nodes.len() - cut_ind_1 < 3;
+        let must_share_0 = cut_ind_0 + connected_nodes.len() - cut_ind_1 < 3;
+        let must_share_1 = cut_ind_1 - cut_ind_0 < 3;
         for share_0 in [true, false] {
           if must_share_0 && !share_0 {
             continue;
@@ -106,15 +106,30 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
 }
 
 fn main() {
-  let mut x = Division::default();
-  foo(Division::default(), |y| {
-    x = y;
-  });
-  let mut y = Division::default();
-  foo(x, |z| {
-    y = z;
-  });
-  check_valid(&y);
+  let mut set = HashSet::new();
+  let mut new_set = HashSet::new();
+  set.insert(Division::default());
+  for _ in 1..5 {
+    println!("{}", set.len());
+    for div in set.drain() {
+      foo(div, |new_div| {
+        if check_valid(&new_div) {
+          new_set.insert(new_div);
+        }
+      })
+    }
+    std::mem::swap(&mut set, &mut new_set);
+  }
+  println!("{}", set.len());
+  // let mut x = Division::default();
+  // foo(Division::default(), |y| {
+  //   x = y;
+  // });
+  // let mut y = Division::default();
+  // foo(x, |z| {
+  //   y = z;
+  // });
+  // check_valid(&y);
 }
 
 fn get_connected_nodes(node: Node, connections: &PairHashMap<Node, ()>) -> Vec<Node> {
@@ -275,36 +290,68 @@ fn hash_division(div: &Division) -> u64 {
 }
 
 fn check_valid(div: &Division) -> bool {
-  dbg!(div);
+  // dbg!(div);
+  #[derive(Clone, Debug)]
   struct State<'a> {
     edge_labels: PairHashMap<Node, bool>,
     div: &'a Division,
-    ambiguous_edges: Vec<(Node, Node)>,
+    /// These edges are part of a 0-1-? triangle, and should be guessed at first
+    ambiguous_edges: Vec<UnorderedPair<Node>>,
+    unlabeled_edges: HashSet<UnorderedPair<Node>>,
   }
   type Result = std::result::Result<(), ()>;
   let mut state = State {
     edge_labels: PairHashMap::new(),
     ambiguous_edges: vec![],
     div,
+    unlabeled_edges: div
+      .connections
+      .iter()
+      .flat_map(|(&key_a, x)| x.iter().map(move |(&key_b, _)| UnorderedPair(key_a, key_b)))
+      .collect(),
   };
   for border_n in 0..4 {
     for node in div.connections.get_all(&Border(border_n)).unwrap().keys() {
-      add_label(
+      if add_label(
         &mut state,
         Border(border_n),
         *node,
         matches!(node, Border(_)) || border_n % 2 == 0,
       )
-      .unwrap();
+      .is_err()
+      {
+        return false;
+      }
     }
   }
-  dbg!(state.edge_labels);
-  return true;
+  return finish_state(state).is_ok();
+
+  fn finish_state(mut state: State) -> Result {
+    if state.edge_labels.len() == state.div.connections.len() {
+      return Ok(()); // All edges have been labeled successfully
+    }
+    let edge = state
+      .ambiguous_edges
+      .pop()
+      .or_else(|| state.unlabeled_edges.iter().next().map(|&x| x))
+      .unwrap();
+    for guess in [true, false] {
+      let mut state_clone = state.clone();
+      if add_label(&mut state_clone, edge.0, edge.1, guess)
+        .and_then(|_| finish_state(state_clone))
+        .is_ok()
+      {
+        return Ok(()); // One of the guesses worked
+      };
+    }
+    Err(()) // Neither of the guesses worked
+  }
 
   fn add_label(state: &mut State, a: Node, b: Node, label: bool) -> Result {
     if let Some(prev_label) = state.edge_labels.add(a, b, label) {
       return if label == prev_label { Ok(()) } else { Err(()) };
     }
+    state.unlabeled_edges.remove(&UnorderedPair(a, b));
     for &c in state
       .div
       .connections
@@ -329,9 +376,38 @@ fn check_valid(div: &Division) -> bool {
             Err(())
           }
         }
-        (_, Some(_), None) => Ok(state.ambiguous_edges.push((b, c))),
-        (_, None, Some(_)) => Ok(state.ambiguous_edges.push((a, c))),
+        (_, Some(_), None) => Ok(state.ambiguous_edges.push(UnorderedPair(b, c))),
+        (_, None, Some(_)) => Ok(state.ambiguous_edges.push(UnorderedPair(a, c))),
       }?;
+    }
+    for (c, d) in state
+      .div
+      .connections
+      .get_all(&a)
+      .unwrap()
+      .keys()
+      .flat_map(|&c| {
+        state
+          .div
+          .connections
+          .get_all(&c)
+          .unwrap()
+          .keys()
+          .map(move |&d| (c, d))
+      })
+      .filter(|&(c, d)| {
+        true
+          && b != c
+          && a != d
+          && state.div.connections.get(&b, &d).is_some()
+          && !state.div.connections.get(&a, &d).is_some()
+      })
+      .collect::<Vec<_>>()
+    {
+      dbg!((a, b, c, d));
+      add_label(state, a, c, !label)?;
+      add_label(state, b, d, !label)?;
+      add_label(state, c, d, label)?;
     }
     check_node(state, a)?;
     check_node(state, b)?;
@@ -353,18 +429,17 @@ fn check_valid(div: &Division) -> bool {
         vec.push(connected_node);
       }
       if vec_true.len() + vec_none.len() < 2 || vec_false.len() + vec_none.len() < 2 {
+        // dbg!((node, &vec_true, &vec_false, &vec_none));
         return Err(());
       }
       if vec_none.len() != 0 {
         if vec_true.len() + vec_none.len() == 2 {
-          println!("hi");
           for &connected_node in &vec_none {
             add_label(state, node, connected_node, true)?;
           }
           return Ok(());
         }
         if vec_true.len() + vec_none.len() == 2 {
-          println!("hi");
           for &connected_node in &vec_none {
             add_label(state, node, connected_node, false)?;
           }
@@ -376,7 +451,6 @@ fn check_valid(div: &Division) -> bool {
       }
       let (mut vec_true_0, mut vec_true_1) = segregate(state, vec_true);
       let (mut vec_false_0, mut vec_false_1) = segregate(state, vec_false);
-      dbg!(&vec_true_0, &vec_true_1, &vec_false_0, &vec_false_1);
       let mut empty_vecs_iter = <_>::into_iter([
         (&mut vec_true_0, true),
         (&mut vec_true_1, true),
@@ -423,3 +497,40 @@ fn check_valid(div: &Division) -> bool {
     }
   }
 }
+
+#[derive(Debug, Default, Clone, Copy)]
+struct UnorderedPair<T>(T, T);
+
+impl<T: Ord> From<UnorderedPair<T>> for (T, T) {
+  fn from(pair: UnorderedPair<T>) -> Self {
+    if pair.0 < pair.1 {
+      (pair.0, pair.1)
+    } else {
+      (pair.1, pair.0)
+    }
+  }
+}
+
+impl<'a, T: Ord> From<&'a UnorderedPair<T>> for (&'a T, &'a T) {
+  fn from(pair: &'a UnorderedPair<T>) -> Self {
+    if pair.0 < pair.1 {
+      (&pair.0, &pair.1)
+    } else {
+      (&pair.1, &pair.0)
+    }
+  }
+}
+
+impl<T: Ord + Hash> Hash for UnorderedPair<T> {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    <_ as Into<(_, _)>>::into(self).hash(state);
+  }
+}
+
+impl<T: Ord + PartialEq> PartialEq for UnorderedPair<T> {
+  fn eq(&self, other: &Self) -> bool {
+    <_ as Into<(_, _)>>::into(self) == other.into()
+  }
+}
+
+impl<T: Ord + Eq> Eq for UnorderedPair<T> {}

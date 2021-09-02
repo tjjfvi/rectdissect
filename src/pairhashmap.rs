@@ -38,6 +38,12 @@ impl<K: Hash + Eq + Clone, V: Clone> PairHashMap<K, V> {
   pub fn keys(&self) -> impl Iterator<Item = &K> {
     self.0.keys()
   }
+  pub fn len(&self) -> usize {
+    self.1
+  }
+  pub fn iter(&self) -> std::collections::hash_map::Iter<K, HashMap<K, V>> {
+    self.0.iter()
+  }
 }
 
 impl<K: Hash + Eq + Clone, V: Clone> Default for PairHashMap<K, V> {
