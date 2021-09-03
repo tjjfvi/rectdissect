@@ -6,15 +6,17 @@ use std::{
   ops::{Div, Index, Neg},
 };
 
+use circularorder::CircularOrder;
 use either::Either;
 use pairhashmap::PairHashMap;
 
+mod circularorder;
 mod pairhashmap;
 
 #[derive(Clone, Debug)]
 struct Division {
   regions: u32,
-  connections: PairHashMap<Node, ()>,
+  connections: HashMap<Node, CircularOrder<Node>>,
 }
 
 impl Hash for Division {
@@ -28,10 +30,12 @@ impl Default for Division {
     Division {
       regions: 1,
       connections: {
-        let mut connections = PairHashMap::new();
+        let mut connections = HashMap::new();
         for i in 0..4 {
-          connections.add(Border(i), Region(0), ());
-          connections.add(Border(i), Border((i + 1) % 4), ());
+          connections.insert(
+            Border(i),
+            CircularOrder::new([Border((i + 1) % 4), Region(0), Border((i + 3) % 4)]),
+          );
         }
         connections
       },
@@ -66,16 +70,16 @@ use Node::*;
 
 fn foo(div: Division, mut cb: impl FnMut(Division)) {
   for region in 0..div.regions {
-    let connected_nodes = get_connected_nodes(Region(region), &div.connections);
-    for cut_ind_0 in 0..connected_nodes.len() {
-      let cut_ind_1_min = cut_ind_0 + 2;
-      let cut_ind_1_max = min(
-        connected_nodes.len() - 1,
-        connected_nodes.len() + cut_ind_0 - 2,
-      );
-      for cut_ind_1 in cut_ind_1_min..=cut_ind_1_max {
-        let must_share_0 = cut_ind_0 + connected_nodes.len() - cut_ind_1 < 3;
-        let must_share_1 = cut_ind_1 - cut_ind_0 < 3;
+    let connected_nodes = div.connections.get(&Region(region)).unwrap();
+    for (cut_0_ind, cut_0) in connected_nodes.iter().enumerate() {
+      for (cut_1_ind, cut_1) in connected_nodes
+        .iter()
+        .enumerate()
+        .take(connected_nodes.len() + cut_0_ind - 2)
+        .skip(cut_0_ind + 2)
+      {
+        let must_share_0 = cut_0_ind + connected_nodes.len() - cut_1_ind < 3;
+        let must_share_1 = cut_1_ind - cut_0_ind < 3;
         for share_0 in [true, false] {
           if must_share_0 && !share_0 {
             continue;
@@ -86,13 +90,59 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
             }
             let new_region = div.regions;
             let mut new_connections = div.connections.clone();
-            for i in cut_ind_0 + share_0 as usize..cut_ind_1 {
-              new_connections.remove(&Region(region), &connected_nodes[i]);
+            {
+              let order = new_connections.get_mut(&Region(region)).unwrap();
+              order
+                .delete_items_between(
+                  cut_0,
+                  if share_1 {
+                    cut_1
+                  } else {
+                    order.get_item_after(cut_1).unwrap()
+                  },
+                )
+                .unwrap();
+              order
+                .insert_items_after(cut_0, [Region(new_region)])
+                .unwrap();
             }
-            for i in cut_ind_0..cut_ind_1 + share_1 as usize {
-              new_connections.add(Region(new_region), connected_nodes[i], ());
+            {
+              let mut order = connected_nodes.clone();
+              order
+                .delete_items_between(
+                  cut_1,
+                  if share_0 {
+                    cut_0
+                  } else {
+                    order.get_item_after(cut_0).unwrap()
+                  },
+                )
+                .unwrap();
+              order.insert_items_after(cut_1, [Region(region)]).unwrap();
+              new_connections.insert(Region(new_region), order);
             }
-            new_connections.add(Region(region), Region(new_region), ());
+            for (i, node) in connected_nodes.iter().enumerate() {
+              if i == cut_0_ind && share_0 || i == cut_1_ind && share_1 {
+                let order = new_connections.get_mut(node).unwrap();
+                order
+                  .insert_items_after(
+                    if i == cut_0_ind {
+                      order.get_item_before(cut_0).unwrap()
+                    } else {
+                      cut_0
+                    },
+                    [Region(new_region)],
+                  )
+                  .unwrap();
+              } else if i > cut_0_ind && i <= cut_1_ind {
+                let order = new_connections.get_mut(node).unwrap();
+                let before = order.get_item_before(&Region(region)).unwrap();
+                order
+                  .delete_items_between(before, order.get_item_after(&Region(region)).unwrap())
+                  .unwrap();
+                order.insert_items_after(before, [Region(new_region)]);
+              }
+            }
             let div = Division {
               regions: div.regions + 1,
               connections: new_connections,
