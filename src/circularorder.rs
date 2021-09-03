@@ -58,10 +58,13 @@ impl<T: Hash + Eq + Clone> CircularOrder<T> {
     );
     let mut last = item.clone();
     while let Some(item) = iter.next() {
-      self
+      if self
         .0
         .insert(item.clone(), (last, iter.peek().unwrap_or(&end).clone()))
-        .ok_or(InsertItemsError::ItemAlreadyExists)?;
+        .is_some()
+      {
+        return Err(InsertItemsError::ItemAlreadyExists);
+      }
       last = item;
     }
     self.0.get_mut(&end).unwrap().0 = last;

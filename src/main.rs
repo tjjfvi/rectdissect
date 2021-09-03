@@ -1,14 +1,11 @@
 use std::{
-  cmp::min,
   collections::{hash_map::DefaultHasher, HashMap, HashSet},
   fmt::Debug,
   hash::{Hash, Hasher},
-  ops::{Div, Index, Neg},
 };
 
 use circularorder::CircularOrder;
 use either::Either;
-use pairhashmap::PairHashMap;
 
 mod circularorder;
 mod pairhashmap;
@@ -37,6 +34,10 @@ impl Default for Division {
             CircularOrder::new([Border((i + 1) % 4), Region(0), Border((i + 3) % 4)]),
           );
         }
+        connections.insert(
+          Region(0),
+          CircularOrder::new([Border(0), Border(1), Border(2), Border(3)]),
+        );
         connections
       },
     }
@@ -75,7 +76,7 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
       for (cut_1_ind, cut_1) in connected_nodes
         .iter()
         .enumerate()
-        .take(connected_nodes.len() + cut_0_ind - 2)
+        .take(connected_nodes.len() + cut_0_ind - 1)
         .skip(cut_0_ind + 2)
       {
         let must_share_0 = cut_0_ind + connected_nodes.len() - cut_1_ind < 3;
@@ -127,9 +128,9 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
                 order
                   .insert_items_after(
                     &(if i == cut_0_ind {
-                      *order.get_item_before(cut_0).unwrap()
+                      *order.get_item_before(&Region(region)).unwrap()
                     } else {
-                      *cut_0
+                      Region(region)
                     }),
                     [Region(new_region)],
                   )
@@ -283,7 +284,7 @@ fn check_valid(div: &Division) -> bool {
   return finish_state(state).is_ok();
 
   fn finish_state(mut state: State) -> Result {
-    if state.edge_labels.len() == state.div.connections.len() {
+    if state.unlabeled_edges.len() == 0 {
       return Ok(()); // All edges have been labeled successfully
     }
     let edge = state
@@ -304,10 +305,13 @@ fn check_valid(div: &Division) -> bool {
   }
 
   fn add_label(state: &mut State, a: Node, b: Node, label: bool) -> Result {
+    state.unlabeled_edges.remove(&UnorderedPair(a, b));
+    if matches!((a, b), (Border(_), Border(_))) {
+      return Ok(());
+    }
     if let Some(prev_label) = state.edge_labels.insert(UnorderedPair(a, b), label) {
       return if label == prev_label { Ok(()) } else { Err(()) };
     }
-    state.unlabeled_edges.remove(&UnorderedPair(a, b));
     let a_connected_nodes = state.div.connections.get(&a).unwrap();
     let b_connected_nodes = state.div.connections.get(&b).unwrap();
     let (c0, c1) = a_connected_nodes.get_items_around(&b).unwrap();
@@ -320,15 +324,15 @@ fn check_valid(div: &Division) -> bool {
           (_, None, None) => Ok(()),
           (true, Some(true), _) => add_label(state, b, c, false),
           (false, Some(false), _) => add_label(state, b, c, true),
+          (_, Some(_), None) => Ok(state.ambiguous_edges.push(UnorderedPair(b, c))),
           (true, _, Some(true)) => add_label(state, a, c, false),
           (false, _, Some(false)) => add_label(state, a, c, true),
-          (_, Some(_), None) => Ok(state.ambiguous_edges.push(UnorderedPair(b, c))),
           (_, None, Some(_)) => Ok(state.ambiguous_edges.push(UnorderedPair(a, c))),
           (false, Some(true), Some(true)) => Ok(()),
           (true, Some(false), Some(false)) => Ok(()),
         }?;
       } else {
-        dbg!((a, b, c, d));
+        // dbg!((a, b, c, d));
         add_label(state, a, c, !label)?;
         add_label(state, b, d, !label)?;
         add_label(state, c, d, label)?;
