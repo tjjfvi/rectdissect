@@ -40,6 +40,9 @@ impl<T: Hash + Eq + Clone> CircularOrder<T> {
   pub fn get_item_before(&self, item: &T) -> Result<&T, MissingItemError> {
     Ok(&self.0.get(item).ok_or(MissingItemError)?.0)
   }
+  pub fn get_items_around(&self, item: &T) -> Result<&(T, T), MissingItemError> {
+    self.0.get(item).ok_or(MissingItemError)
+  }
   pub fn insert_items_after(
     &mut self,
     item: &T,
@@ -97,11 +100,13 @@ impl<T: Hash + Eq + Clone> CircularOrder<T> {
   }
   pub fn iter(&self) -> Iter<'_, T> {
     let start = self.0.keys().next().unwrap();
-    Iter {
-      circular_order: self,
-      start,
-      cur: Some(start),
-    }
+    Iter(self, Some((start, start)))
+  }
+  pub fn iter_starting_at<'a>(&'a self, start: &'a T) -> Iter<'a, T> {
+    Iter(self, Some((start, start)))
+  }
+  pub fn iter_between<'a>(&'a self, start: &'a T, end: &'a T) -> Iter<'a, T> {
+    Iter(self, Some((start, end)))
   }
 }
 
@@ -121,20 +126,32 @@ impl<T: Hash + Eq + Debug> Debug for CircularOrder<T> {
   }
 }
 
-pub struct Iter<'a, T> {
-  circular_order: &'a CircularOrder<T>,
-  start: &'a T,
-  cur: Option<&'a T>,
-}
+pub struct Iter<'a, T>(&'a CircularOrder<T>, Option<(&'a T, &'a T)>);
 
 impl<'a, T: Hash + Eq> FusedIterator for Iter<'a, T> {}
 
 impl<'a, T: Hash + Eq> Iterator for Iter<'a, T> {
   type Item = &'a T;
   fn next(&mut self) -> Option<Self::Item> {
-    if let Some(cur) = self.cur {
-      let next = &self.circular_order.0.get(cur).unwrap().1;
-      self.cur = if next == self.start { None } else { Some(next) };
+    if let Some((cur, end)) = self.1 {
+      let next = &self.0 .0.get(cur).unwrap().1;
+      self.1 = if next == end { None } else { Some((next, end)) };
+      Some(cur)
+    } else {
+      None
+    }
+  }
+}
+
+impl<'a, T: Hash + Eq> DoubleEndedIterator for Iter<'a, T> {
+  fn next_back(&mut self) -> Option<Self::Item> {
+    if let Some((start, cur)) = self.1 {
+      let next = &self.0 .0.get(cur).unwrap().0;
+      self.1 = if next == start {
+        None
+      } else {
+        Some((start, next))
+      };
       Some(cur)
     } else {
       None

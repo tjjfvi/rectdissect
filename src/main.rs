@@ -95,11 +95,11 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
               order
                 .delete_items_between(
                   cut_0,
-                  if share_1 {
-                    cut_1
+                  &(if share_1 {
+                    *cut_1
                   } else {
-                    order.get_item_after(cut_1).unwrap()
-                  },
+                    *order.get_item_after(cut_1).unwrap()
+                  }),
                 )
                 .unwrap();
               order
@@ -111,11 +111,11 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
               order
                 .delete_items_between(
                   cut_1,
-                  if share_0 {
-                    cut_0
+                  &(if share_0 {
+                    *cut_0
                   } else {
-                    order.get_item_after(cut_0).unwrap()
-                  },
+                    *order.get_item_after(cut_0).unwrap()
+                  }),
                 )
                 .unwrap();
               order.insert_items_after(cut_1, [Region(region)]).unwrap();
@@ -126,21 +126,26 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
                 let order = new_connections.get_mut(node).unwrap();
                 order
                   .insert_items_after(
-                    if i == cut_0_ind {
-                      order.get_item_before(cut_0).unwrap()
+                    &(if i == cut_0_ind {
+                      *order.get_item_before(cut_0).unwrap()
                     } else {
-                      cut_0
-                    },
+                      *cut_0
+                    }),
                     [Region(new_region)],
                   )
                   .unwrap();
               } else if i > cut_0_ind && i <= cut_1_ind {
                 let order = new_connections.get_mut(node).unwrap();
-                let before = order.get_item_before(&Region(region)).unwrap();
+                let before = order.get_item_before(&Region(region)).unwrap().clone();
                 order
-                  .delete_items_between(before, order.get_item_after(&Region(region)).unwrap())
+                  .delete_items_between(
+                    &before,
+                    &order.get_item_after(&Region(region)).unwrap().clone(),
+                  )
                   .unwrap();
-                order.insert_items_after(before, [Region(new_region)]);
+                order
+                  .insert_items_after(&before, [Region(new_region)])
+                  .unwrap();
               }
             }
             let div = Division {
@@ -182,107 +187,10 @@ fn main() {
   // check_valid(&y);
 }
 
-fn get_connected_nodes(node: Node, connections: &PairHashMap<Node, ()>) -> Vec<Node> {
-  _get_connected_nodes(
-    node,
-    connections,
-    vec![*connections.get_all(&node).unwrap().keys().next().unwrap()],
-  )
-}
-
-fn _get_connected_nodes(
-  node: Node,
-  connections: &PairHashMap<Node, ()>,
-  mut vec: Vec<Node>,
-) -> Vec<Node> {
-  let set = connections.get_all(&node).unwrap();
-  let mut reverse = false;
-  for _ in 0..set.len() - vec.len() {
-    let mut cur = vec.last().unwrap();
-    if matches!((node, cur), (Border(_), Border(_))) {
-      vec.reverse();
-      reverse = !reverse;
-      cur = vec.last().unwrap();
-    }
-    let new = *connections
-      .get_all(cur)
-      .unwrap()
-      .keys()
-      .chain(
-        connections
-          .get_all(&cur)
-          .unwrap()
-          .keys()
-          .flat_map(|x| connections.get_all(&x).unwrap().keys()),
-      )
-      .find(|x| set.contains_key(x) && !vec.contains(x))
-      .unwrap();
-    vec.push(new);
-  }
-  debug_assert_eq!(vec.len(), set.len());
-  debug_assert_eq!(vec.iter().collect::<HashSet<_>>().len(), vec.len());
-  if reverse {
-    vec.reverse();
-  }
-  vec
-}
-
-fn get_embedding(div: &Division) -> HashMap<Node, Vec<Node>> {
-  let mut embedding = HashMap::new();
-
-  let mut todo = vec![];
-  {
-    let node = Region(0);
-    todo.push((
-      node,
-      vec![
-        *div
-          .connections
-          .get_all(&node)
-          .unwrap()
-          .iter()
-          .next()
-          .unwrap()
-          .0,
-      ],
-    ));
-  }
-  while let Some((node, vec)) = todo.pop() {
-    let vec = _get_connected_nodes(node, &div.connections, vec);
-    for (i, &next) in vec.iter().enumerate() {
-      if embedding.contains_key(&next) {
-        continue;
-      }
-      let prev = vec[(if i == 0 { vec.len() } else { i }) - 1];
-      todo.push((
-        next,
-        vec![
-          node,
-          if div.connections.get(&next, &prev).is_some() {
-            prev
-          } else {
-            *div
-              .connections
-              .get_all(&next)
-              .unwrap()
-              .iter()
-              .map(|x| x.0)
-              .find(|x| div.connections.get(x, &prev).is_some() && **x != node)
-              .unwrap()
-          },
-        ],
-      ))
-    }
-    embedding.insert(node, vec);
-  }
-  embedding
-}
-
 fn hash_division(div: &Division) -> u64 {
   let mut hash = u64::MAX;
-  let embedding = get_embedding(div);
-  for &node_0 in div.connections.keys() {
-    for &node_1 in div.connections.get_all(&node_0).unwrap().keys() {
+  for (&node_0, connected_nodes) in &div.connections {
+    for &node_1 in connected_nodes.iter() {
       for dir in [true, false] {
         let mut hasher = DefaultHasher::new();
         let mut last_node = node_0;
@@ -300,7 +208,7 @@ fn hash_division(div: &Division) -> u64 {
           hasher.write_u32(cur_node_id);
           let visited = cur_node_id != node_id_max;
           let mut next_node = None;
-          for node in next_node_candidates(&embedding, dir, cur_node, last_node) {
+          for &node in next_node_candidates(&div, dir, &cur_node, &last_node) {
             if (visited || node != last_node) && visited_edges.insert((cur_node, node)) {
               next_node = Some(node);
               break;
@@ -323,19 +231,17 @@ fn hash_division(div: &Division) -> u64 {
   }
   return hash;
   fn next_node_candidates<'a>(
-    embedding: &'a HashMap<Node, Vec<Node>>,
+    div: &'a Division,
     dir: bool,
-    from: Node,
-    start: Node,
-  ) -> impl Iterator<Item = Node> + 'a {
-    let vec = embedding.get(&from).unwrap();
-    let start = vec.iter().position(|x| *x == start).unwrap();
+    from: &Node,
+    start: &'a Node,
+  ) -> impl Iterator<Item = &'a Node> + 'a {
+    let iter = div.connections.get(&from).unwrap().iter_starting_at(&start);
     if dir {
-      Either::Left((start..vec.len()).chain(0..start))
+      Either::Left(iter)
     } else {
-      Either::Right((start + 1..vec.len()).chain(0..=start).rev())
+      Either::Right(iter.rev())
     }
-    .map(move |i| vec[i])
   }
 }
 
@@ -343,7 +249,7 @@ fn check_valid(div: &Division) -> bool {
   // dbg!(div);
   #[derive(Clone, Debug)]
   struct State<'a> {
-    edge_labels: PairHashMap<Node, bool>,
+    edge_labels: HashMap<UnorderedPair<Node>, bool>,
     div: &'a Division,
     /// These edges are part of a 0-1-? triangle, and should be guessed at first
     ambiguous_edges: Vec<UnorderedPair<Node>>,
@@ -351,17 +257,17 @@ fn check_valid(div: &Division) -> bool {
   }
   type Result = std::result::Result<(), ()>;
   let mut state = State {
-    edge_labels: PairHashMap::new(),
+    edge_labels: HashMap::new(),
     ambiguous_edges: vec![],
     div,
     unlabeled_edges: div
       .connections
       .iter()
-      .flat_map(|(&key_a, x)| x.iter().map(move |(&key_b, _)| UnorderedPair(key_a, key_b)))
+      .flat_map(|(&key_a, x)| x.iter().map(move |&key_b| UnorderedPair(key_a, key_b)))
       .collect(),
   };
   for border_n in 0..4 {
-    for node in div.connections.get_all(&Border(border_n)).unwrap().keys() {
+    for node in div.connections.get(&Border(border_n)).unwrap().iter() {
       if add_label(
         &mut state,
         Border(border_n),
@@ -398,152 +304,108 @@ fn check_valid(div: &Division) -> bool {
   }
 
   fn add_label(state: &mut State, a: Node, b: Node, label: bool) -> Result {
-    if let Some(prev_label) = state.edge_labels.add(a, b, label) {
+    if let Some(prev_label) = state.edge_labels.insert(UnorderedPair(a, b), label) {
       return if label == prev_label { Ok(()) } else { Err(()) };
     }
     state.unlabeled_edges.remove(&UnorderedPair(a, b));
-    for &c in state
-      .div
-      .connections
-      .get_all(&a)
-      .unwrap()
-      .keys()
-      .filter(|c| state.div.connections.get(&b, c).is_some())
-      .collect::<Vec<_>>()
-    {
-      let a_leg = state.edge_labels.get(&a, &c);
-      let b_leg = state.edge_labels.get(&b, &c);
-      match (label, a_leg, b_leg) {
-        (_, None, None) => Ok(()),
-        (true, Some(true), None) => add_label(state, b, c, false),
-        (false, Some(false), None) => add_label(state, b, c, true),
-        (true, None, Some(true)) => add_label(state, a, c, false),
-        (false, None, Some(false)) => add_label(state, a, c, true),
-        (a, Some(&b), Some(&c)) => {
-          if (a as u8 + b as u8 + c as u8) % 3 != 0 {
-            Ok(())
-          } else {
-            Err(())
-          }
-        }
-        (_, Some(_), None) => Ok(state.ambiguous_edges.push(UnorderedPair(b, c))),
-        (_, None, Some(_)) => Ok(state.ambiguous_edges.push(UnorderedPair(a, c))),
-      }?;
-    }
-    for (c, d) in state
-      .div
-      .connections
-      .get_all(&a)
-      .unwrap()
-      .keys()
-      .flat_map(|&c| {
-        state
-          .div
-          .connections
-          .get_all(&c)
-          .unwrap()
-          .keys()
-          .map(move |&d| (c, d))
-      })
-      .filter(|&(c, d)| {
-        true
-          && b != c
-          && a != d
-          && state.div.connections.get(&b, &d).is_some()
-          && !state.div.connections.get(&a, &d).is_some()
-      })
-      .collect::<Vec<_>>()
-    {
-      dbg!((a, b, c, d));
-      add_label(state, a, c, !label)?;
-      add_label(state, b, d, !label)?;
-      add_label(state, c, d, label)?;
+    let a_connected_nodes = state.div.connections.get(&a).unwrap();
+    let b_connected_nodes = state.div.connections.get(&b).unwrap();
+    let (c0, c1) = a_connected_nodes.get_items_around(&b).unwrap();
+    let (d1, d0) = b_connected_nodes.get_items_around(&a).unwrap();
+    for (&c, &d) in [(c0, d0), (c1, d1)] {
+      if c == d {
+        let a_leg = state.edge_labels.get(&UnorderedPair(a, c));
+        let b_leg = state.edge_labels.get(&UnorderedPair(b, c));
+        match (label, a_leg, b_leg) {
+          (_, None, None) => Ok(()),
+          (true, Some(true), _) => add_label(state, b, c, false),
+          (false, Some(false), _) => add_label(state, b, c, true),
+          (true, _, Some(true)) => add_label(state, a, c, false),
+          (false, _, Some(false)) => add_label(state, a, c, true),
+          (_, Some(_), None) => Ok(state.ambiguous_edges.push(UnorderedPair(b, c))),
+          (_, None, Some(_)) => Ok(state.ambiguous_edges.push(UnorderedPair(a, c))),
+          (false, Some(true), Some(true)) => Ok(()),
+          (true, Some(false), Some(false)) => Ok(()),
+        }?;
+      } else {
+        dbg!((a, b, c, d));
+        add_label(state, a, c, !label)?;
+        add_label(state, b, d, !label)?;
+        add_label(state, c, d, label)?;
+      }
     }
     check_node(state, a)?;
     check_node(state, b)?;
     return Ok(());
 
     fn check_node(state: &mut State, node: Node) -> Result {
-      if !matches!(node, Region(_)) {
+      if matches!(node, Border(_)) {
         return Ok(());
       }
-      let mut vec_true = vec![];
-      let mut vec_false = vec![];
-      let mut vec_none = vec![];
-      for &connected_node in state.div.connections.get_all(&node).unwrap().keys() {
-        let vec = match state.edge_labels.get(&node, &connected_node) {
-          Some(true) => &mut vec_true,
-          Some(false) => &mut vec_false,
-          None => &mut vec_none,
-        };
-        vec.push(connected_node);
+      let connected_nodes = state.div.connections.get(&node).unwrap();
+      let mut all_true = vec![];
+      let mut all_false = vec![];
+      let mut all_none = vec![];
+      let mut vecs: Vec<(Vec<Node>, Option<bool>)> = vec![];
+      let mut true_vecs_count = 0;
+      let mut false_vecs_count = 0;
+      let mut _none_vecs_count = 0;
+      for &connected_node in connected_nodes.iter() {
+        let label = state
+          .edge_labels
+          .get(&UnorderedPair(node, connected_node))
+          .cloned();
+        match state.edge_labels.get(&UnorderedPair(node, connected_node)) {
+          Some(true) => &mut all_true,
+          Some(false) => &mut all_false,
+          None => &mut all_none,
+        }
+        .push(connected_node.clone());
+        match vecs.last_mut() {
+          Some((ref mut vec, label2)) if *label2 == label => vec.push(connected_node),
+          _ => {
+            vecs.push((vec![connected_node], label));
+            match label {
+              Some(true) => true_vecs_count += 1,
+              Some(false) => false_vecs_count += 1,
+              None => _none_vecs_count += 1,
+            }
+          }
+        }
       }
-      if vec_true.len() + vec_none.len() < 2 || vec_false.len() + vec_none.len() < 2 {
-        // dbg!((node, &vec_true, &vec_false, &vec_none));
+      if vecs.len() > 1 && vecs.last().unwrap().1 == vecs[0].1 {
+        let (partial_vec, label) = vecs.pop().unwrap();
+        vecs[0].0.splice(0..0, partial_vec);
+        match label {
+          Some(true) => true_vecs_count -= 1,
+          Some(false) => false_vecs_count -= 1,
+          None => _none_vecs_count -= 1,
+        }
+      }
+      if all_true.len() + all_none.len() < 2 || all_false.len() + all_none.len() < 2 {
         return Err(());
       }
-      if vec_none.len() != 0 {
-        if vec_true.len() + vec_none.len() == 2 {
-          for &connected_node in &vec_none {
+      if all_none.len() != 0 {
+        if all_true.len() + all_none.len() == 2 {
+          for &connected_node in &all_none {
             add_label(state, node, connected_node, true)?;
           }
           return Ok(());
         }
-        if vec_true.len() + vec_none.len() == 2 {
-          for &connected_node in &vec_none {
+        if all_true.len() + all_none.len() == 2 {
+          for &connected_node in &all_none {
             add_label(state, node, connected_node, false)?;
           }
           return Ok(());
         }
       }
-      if vec_true.len() == 0 || vec_false.len() == 0 {
+      if all_true.len() == 0 || all_false.len() == 0 {
         return Ok(());
       }
-      let (mut vec_true_0, mut vec_true_1) = segregate(state, vec_true);
-      let (mut vec_false_0, mut vec_false_1) = segregate(state, vec_false);
-      let mut empty_vecs_iter = <_>::into_iter([
-        (&mut vec_true_0, true),
-        (&mut vec_true_1, true),
-        (&mut vec_false_0, false),
-        (&mut vec_false_1, false),
-      ])
-      .filter(|x| x.0.len() == 0);
-      if vec_none.len() < 2 {
-        if let Some((_, label)) = empty_vecs_iter.next() {
-          if vec_none.len() == 0 {
-            return Err(());
-          } else {
-            return add_label(state, node, vec_none[0], label);
-          }
-        }
-      } else {
-        if vec_none.len() < empty_vecs_iter.count() {
-          return Err(());
-        }
+      if all_none.len() == 0 && (true_vecs_count != 2 || false_vecs_count != 2) {
+        return Err(());
       }
-      return Ok(());
-      fn segregate(state: &mut State, mut vec: Vec<Node>) -> (Vec<Node>, Vec<Node>) {
-        let mut vec_0 = vec![];
-        let mut edges = vec![vec.pop().unwrap()];
-        let mut new_edges = vec![];
-        while edges.len() != 0 {
-          new_edges.clear();
-          for &node in &vec {
-            if edges
-              .iter()
-              .any(|&edge| state.div.connections.get(&node, &edge).is_some())
-            {
-              new_edges.push(node);
-            }
-          }
-          if edges.len() != 0 {
-            vec.retain(|x| !new_edges.contains(x));
-          }
-          vec_0.extend(edges.drain(..));
-          std::mem::swap(&mut edges, &mut new_edges);
-        }
-        (vec_0, vec)
-      }
+      Ok(())
     }
   }
 }
