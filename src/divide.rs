@@ -2,7 +2,7 @@ use crate::*;
 
 pub fn divide(div: Division, mut cb: impl FnMut(Division)) {
   for region in 0..div.regions {
-    let connected_nodes = div.connections.get(&Region(region)).unwrap();
+    let connected_nodes = &div.connections[&Region(region)];
     for (cut_0_ind, cut_0) in connected_nodes.iter().enumerate() {
       for (cut_1_ind, cut_1) in connected_nodes
         .iter()

@@ -41,7 +41,7 @@ pub fn hash_division(div: &Division) -> u64 {
         std::mem::replace(next_node_id, *next_node_id + 1)
       }));
     if fresh {
-      let connected_nodes = state.div.connections.get(&node).unwrap();
+      let connected_nodes = &state.div.connections[&node];
       for &next in maybe_reverse(connected_nodes.iter_starting_at(last), state.dir) {
         visit_node(state, next, &node);
       }

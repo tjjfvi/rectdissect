@@ -23,7 +23,7 @@ pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
       .collect(),
   };
   for border_n in 0..4 {
-    for node in div.connections.get(&Border(border_n)).unwrap().iter() {
+    for node in div.connections[&Border(border_n)].iter() {
       add_label(
         &mut state,
         Border(border_n),
@@ -62,8 +62,8 @@ pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
     if let Some(prev_label) = state.edge_labels.insert(UnorderedPair(a, b), label) {
       return if label == prev_label { Some(()) } else { None };
     }
-    let a_connected_nodes = state.div.connections.get(&a).unwrap();
-    let b_connected_nodes = state.div.connections.get(&b).unwrap();
+    let a_connected_nodes = &state.div.connections[&a];
+    let b_connected_nodes = &state.div.connections[&b];
     let (c0, c1) = a_connected_nodes.get_items_around(&b).unwrap();
     let (d1, d0) = b_connected_nodes.get_items_around(&a).unwrap();
     for (&c, &d) in [(c0, d0), (c1, d1)] {
@@ -148,7 +148,7 @@ pub fn classify_connected_nodes(
   edge_labels: &EdgeLabels,
 ) -> ConnectedNodesClassification {
   let mut state = ConnectedNodesClassification::default();
-  let connected_nodes = div.connections.get(&node).unwrap();
+  let connected_nodes = &div.connections[&node];
   for &connected_node in connected_nodes.iter() {
     let label = edge_labels
       .get(&UnorderedPair(node, connected_node))

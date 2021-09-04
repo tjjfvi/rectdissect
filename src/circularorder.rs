@@ -126,7 +126,7 @@ impl<'a, T: Hash + Eq> Iterator for Iter<'a, T> {
   type Item = &'a T;
   fn next(&mut self) -> Option<Self::Item> {
     if let Some((cur, end)) = self.1 {
-      let next = &self.0 .0.get(cur).unwrap().1;
+      let next = &self.0 .0[cur].1;
       self.1 = if next == end { None } else { Some((next, end)) };
       Some(cur)
     } else {
@@ -138,7 +138,7 @@ impl<'a, T: Hash + Eq> Iterator for Iter<'a, T> {
 impl<'a, T: Hash + Eq> DoubleEndedIterator for Iter<'a, T> {
   fn next_back(&mut self) -> Option<Self::Item> {
     if let Some((start, cur)) = self.1 {
-      let next = &self.0 .0.get(cur).unwrap().0;
+      let next = &self.0 .0[cur].0;
       self.1 = if next == start {
         None
       } else {
