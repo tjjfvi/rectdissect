@@ -165,19 +165,16 @@ fn main() {
   let mut set = HashSet::new();
   let mut new_set = HashSet::new();
   set.insert(Division::default());
-  for i in 1..5 {
-    let mut x = 0;
+  for _ in 1..5 {
     println!("{}", set.len());
     for div in set.drain() {
       foo(div, |new_div| {
-        if check_valid(&new_div) {
-          x += 1;
+        if label_edges(&new_div).is_some() {
           new_set.insert(new_div);
         }
       })
     }
     std::mem::swap(&mut set, &mut new_set);
-    dbg!(x);
   }
   println!("{}", set.len());
   // let mut x = Division::default();
@@ -249,7 +246,7 @@ fn hash_division(div: &Division) -> u64 {
   }
 }
 
-fn check_valid(div: &Division) -> bool {
+fn label_edges(div: &Division) -> Option<HashMap<UnorderedPair<Node>, bool>> {
   // dbg!(div);
   #[derive(Clone, Debug)]
   struct State<'a> {
@@ -259,7 +256,6 @@ fn check_valid(div: &Division) -> bool {
     ambiguous_edges: Vec<UnorderedPair<Node>>,
     unlabeled_edges: HashSet<UnorderedPair<Node>>,
   }
-  type Result = std::result::Result<(), ()>;
   let mut state = State {
     edge_labels: HashMap::new(),
     ambiguous_edges: vec![],
@@ -272,23 +268,19 @@ fn check_valid(div: &Division) -> bool {
   };
   for border_n in 0..4 {
     for node in div.connections.get(&Border(border_n)).unwrap().iter() {
-      if add_label(
+      add_label(
         &mut state,
         Border(border_n),
         *node,
         matches!(node, Border(_)) || border_n % 2 == 0,
-      )
-      .is_err()
-      {
-        return false;
-      }
+      )?;
     }
   }
-  return finish_state(state).is_ok();
+  return Some(finish_state(state)?.edge_labels);
 
-  fn finish_state(mut state: State) -> Result {
+  fn finish_state(mut state: State) -> Option<State> {
     if state.unlabeled_edges.len() == 0 {
-      return Ok(()); // All edges have been labeled successfully
+      return Some(state); // All edges have been labeled successfully
     }
     let edge = state
       .ambiguous_edges
@@ -297,23 +289,22 @@ fn check_valid(div: &Division) -> bool {
       .unwrap();
     for guess in [true, false] {
       let mut state_clone = state.clone();
-      if add_label(&mut state_clone, edge.0, edge.1, guess)
-        .and_then(|_| finish_state(state_clone))
-        .is_ok()
+      if let Some(sucess_state) =
+        add_label(&mut state_clone, edge.0, edge.1, guess).and_then(|_| finish_state(state_clone))
       {
-        return Ok(()); // One of the guesses worked
+        return Some(sucess_state); // One of the guesses worked
       };
     }
-    Err(()) // Neither of the guesses worked
+    None // Neither of the guesses worked
   }
 
-  fn add_label(state: &mut State, a: Node, b: Node, label: bool) -> Result {
+  fn add_label(state: &mut State, a: Node, b: Node, label: bool) -> Option<()> {
     state.unlabeled_edges.remove(&UnorderedPair(a, b));
     if matches!((a, b), (Border(_), Border(_))) {
-      return Ok(());
+      return Some(());
     }
     if let Some(prev_label) = state.edge_labels.insert(UnorderedPair(a, b), label) {
-      return if label == prev_label { Ok(()) } else { Err(()) };
+      return if label == prev_label { Some(()) } else { None };
     }
     let a_connected_nodes = state.div.connections.get(&a).unwrap();
     let b_connected_nodes = state.div.connections.get(&b).unwrap();
@@ -324,15 +315,15 @@ fn check_valid(div: &Division) -> bool {
         let a_leg = state.edge_labels.get(&UnorderedPair(a, c));
         let b_leg = state.edge_labels.get(&UnorderedPair(b, c));
         match (label, a_leg, b_leg) {
-          (_, None, None) => Ok(()),
+          (_, None, None) => Some(()),
           (true, Some(true), _) => add_label(state, b, c, false),
           (false, Some(false), _) => add_label(state, b, c, true),
-          (_, Some(_), None) => Ok(state.ambiguous_edges.push(UnorderedPair(b, c))),
+          (_, Some(_), None) => Some(state.ambiguous_edges.push(UnorderedPair(b, c))),
           (true, _, Some(true)) => add_label(state, a, c, false),
           (false, _, Some(false)) => add_label(state, a, c, true),
-          (_, None, Some(_)) => Ok(state.ambiguous_edges.push(UnorderedPair(a, c))),
-          (false, Some(true), Some(true)) => Ok(()),
-          (true, Some(false), Some(false)) => Ok(()),
+          (_, None, Some(_)) => Some(state.ambiguous_edges.push(UnorderedPair(a, c))),
+          (false, Some(true), Some(true)) => Some(()),
+          (true, Some(false), Some(false)) => Some(()),
         }?;
       } else {
         add_label(state, a, c, !label)?;
@@ -342,11 +333,11 @@ fn check_valid(div: &Division) -> bool {
     }
     check_node(state, a)?;
     check_node(state, b)?;
-    return Ok(());
+    return Some(());
 
-    fn check_node(state: &mut State, node: Node) -> Result {
+    fn check_node(state: &mut State, node: Node) -> Option<()> {
       if matches!(node, Border(_)) {
-        return Ok(());
+        return Some(());
       }
       let connected_nodes = state.div.connections.get(&node).unwrap();
       let mut all_true = vec![];
@@ -389,29 +380,29 @@ fn check_valid(div: &Division) -> bool {
         }
       }
       if all_true.len() + all_none.len() < 2 || all_false.len() + all_none.len() < 2 {
-        return Err(());
+        return None;
       }
       if all_none.len() != 0 {
         if all_true.len() + all_none.len() == 2 {
           for &connected_node in &all_none {
             add_label(state, node, connected_node, true)?;
           }
-          return Ok(());
+          return Some(());
         }
         if all_true.len() + all_none.len() == 2 {
           for &connected_node in &all_none {
             add_label(state, node, connected_node, false)?;
           }
-          return Ok(());
+          return Some(());
         }
       }
       if all_true.len() == 0 || all_false.len() == 0 {
-        return Ok(());
+        return Some(());
       }
       if all_none.len() == 0 && (true_vecs_count != 2 || false_vecs_count != 2) {
-        return Err(());
+        return None;
       }
-      Ok(())
+      Some(())
     }
   }
 }
