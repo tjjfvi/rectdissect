@@ -54,7 +54,6 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Vec<[f64; 4]
         let first = i == 0;
         let last = i == next_nodes_count - 1;
         let range = ranges.entry(next_node).or_insert([f64::NAN, f64::NAN]);
-        dbg!(node, next_node, first, last, &range);
         if range[0].is_nan()
           && (!first
             || edge_labels[&UnorderedPair(
@@ -75,7 +74,6 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Vec<[f64; 4]
           let t = (i + 1) as f64 / next_nodes_count as f64;
           range[1] = end * t + start * (1. - t);
         }
-        dbg!(&range);
         node_queue.push_back(next_node);
       }
     }
