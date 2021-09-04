@@ -1,6 +1,6 @@
 use std::{
-  collections::{hash_map::DefaultHasher, HashMap, HashSet},
-  fmt::Debug,
+  collections::{hash_map::DefaultHasher, HashMap, HashSet, VecDeque},
+  fmt::{Debug, Write},
   hash::{Hash, Hasher},
 };
 
@@ -165,7 +165,7 @@ fn main() {
   let mut set = HashSet::new();
   let mut new_set = HashSet::new();
   set.insert(Division::default());
-  for _ in 1..5 {
+  for _ in 1..4 {
     println!("{}", set.len());
     for div in set.drain() {
       foo(div, |new_div| {
@@ -177,15 +177,23 @@ fn main() {
     std::mem::swap(&mut set, &mut new_set);
   }
   println!("{}", set.len());
-  // let mut x = Division::default();
-  // foo(Division::default(), |y| {
-  //   x = y;
-  // });
-  // let mut y = Division::default();
-  // foo(x, |z| {
-  //   y = z;
-  // });
-  // check_valid(&y);
+  for div in set {
+    let layout = generate_layout(&div, &label_edges(&div).unwrap());
+    let mut str = r#"<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">"#.to_string();
+    for rect in layout {
+      write!(
+        str,
+        r#"<rect x="{}" width="{}" y="{}" height="{}" stroke="black" stroke-width="2" fill="none"/>"#,
+        rect[0] * 100. + 10.,
+        (rect[2] - rect[0]) * 100.,
+        (rect[1]) * 100. + 10.,
+        (rect[3] - rect[1]) * 100.
+      )
+      .unwrap();
+    }
+    str += "</svg>";
+    println!("{}", str);
+  }
 }
 
 fn hash_division(div: &Division) -> u64 {
@@ -339,46 +347,14 @@ fn label_edges(div: &Division) -> Option<HashMap<UnorderedPair<Node>, bool>> {
       if matches!(node, Border(_)) {
         return Some(());
       }
-      let connected_nodes = state.div.connections.get(&node).unwrap();
-      let mut all_true = vec![];
-      let mut all_false = vec![];
-      let mut all_none = vec![];
-      let mut vecs: Vec<(Vec<Node>, Option<bool>)> = vec![];
-      let mut true_vecs_count = 0;
-      let mut false_vecs_count = 0;
-      let mut _none_vecs_count = 0;
-      for &connected_node in connected_nodes.iter() {
-        let label = state
-          .edge_labels
-          .get(&UnorderedPair(node, connected_node))
-          .cloned();
-        match state.edge_labels.get(&UnorderedPair(node, connected_node)) {
-          Some(true) => &mut all_true,
-          Some(false) => &mut all_false,
-          None => &mut all_none,
-        }
-        .push(connected_node.clone());
-        match vecs.last_mut() {
-          Some((ref mut vec, label2)) if *label2 == label => vec.push(connected_node),
-          _ => {
-            vecs.push((vec![connected_node], label));
-            match label {
-              Some(true) => true_vecs_count += 1,
-              Some(false) => false_vecs_count += 1,
-              None => _none_vecs_count += 1,
-            }
-          }
-        }
-      }
-      if vecs.len() > 1 && vecs.last().unwrap().1 == vecs[0].1 {
-        let (partial_vec, label) = vecs.pop().unwrap();
-        vecs[0].0.splice(0..0, partial_vec);
-        match label {
-          Some(true) => true_vecs_count -= 1,
-          Some(false) => false_vecs_count -= 1,
-          None => _none_vecs_count -= 1,
-        }
-      }
+      let ConnectedNodesClassification {
+        all_true,
+        all_false,
+        all_none,
+        true_vecs_count,
+        false_vecs_count,
+        ..
+      } = classify_connected_nodes(node, state.div, &state.edge_labels);
       if all_true.len() + all_none.len() < 2 || all_false.len() + all_none.len() < 2 {
         return None;
       }
@@ -404,6 +380,144 @@ fn label_edges(div: &Division) -> Option<HashMap<UnorderedPair<Node>, bool>> {
       }
       Some(())
     }
+  }
+}
+
+#[derive(Default, Debug, Clone)]
+struct ConnectedNodesClassification {
+  all_true: Vec<Node>,
+  all_false: Vec<Node>,
+  all_none: Vec<Node>,
+  vecs: Vec<(Vec<Node>, Option<bool>)>,
+  true_vecs_count: u32,
+  false_vecs_count: u32,
+  none_vecs_count: u32,
+}
+fn classify_connected_nodes(
+  node: Node,
+  div: &Division,
+  edge_labels: &HashMap<UnorderedPair<Node>, bool>,
+) -> ConnectedNodesClassification {
+  let mut state = ConnectedNodesClassification::default();
+  let connected_nodes = div.connections.get(&node).unwrap();
+  for &connected_node in connected_nodes.iter() {
+    let label = edge_labels
+      .get(&UnorderedPair(node, connected_node))
+      .cloned();
+    match edge_labels.get(&UnorderedPair(node, connected_node)) {
+      Some(true) => &mut state.all_true,
+      Some(false) => &mut state.all_false,
+      None => &mut state.all_none,
+    }
+    .push(connected_node.clone());
+    match state.vecs.last_mut() {
+      Some((ref mut vec, label2)) if *label2 == label => vec.push(connected_node),
+      _ => {
+        state.vecs.push((vec![connected_node], label));
+        match label {
+          Some(true) => state.true_vecs_count += 1,
+          Some(false) => state.false_vecs_count += 1,
+          None => state.none_vecs_count += 1,
+        }
+      }
+    }
+  }
+  if state.vecs.len() > 1 && state.vecs.last().unwrap().1 == state.vecs[0].1 {
+    let (partial_vec, label) = state.vecs.pop().unwrap();
+    state.vecs[0].0.splice(0..0, partial_vec);
+    match label {
+      Some(true) => state.true_vecs_count -= 1,
+      Some(false) => state.false_vecs_count -= 1,
+      None => state.none_vecs_count -= 1,
+    }
+  }
+  state
+}
+
+fn generate_layout(
+  div: &Division,
+  edge_labels: &HashMap<UnorderedPair<Node>, bool>,
+) -> Vec<[f64; 4]> {
+  let layout_x = generate_1d_layout(div, edge_labels, false);
+  let layout_y = generate_1d_layout(div, edge_labels, true);
+
+  return (0..div.regions)
+    .map(|region| {
+      let (x1, x2) = layout_x[&Region(region)];
+      let (y1, y2) = layout_y[&Region(region)];
+      debug_assert!(!x1.is_nan() && !x2.is_nan() && !y1.is_nan() && !y2.is_nan());
+      [x1, y1, x2, y2]
+    })
+    .collect();
+
+  fn generate_1d_layout(
+    div: &Division,
+    edge_labels: &HashMap<UnorderedPair<Node>, bool>,
+    axis: bool,
+  ) -> HashMap<Node, (f64, f64)> {
+    let root = if axis { 0 } else { 3 };
+    let mut ranges = HashMap::new();
+    ranges.insert(Border(root), (0.0_f64, 1.0_f64));
+    let mut node_queue = VecDeque::new();
+    node_queue.push_back(Border(root));
+    while let Some(node) = node_queue.pop_front() {
+      let (start, end) = ranges[&node];
+      let mut next_nodes = {
+        let mut iter = classify_connected_nodes(node, div, edge_labels)
+          .vecs
+          .into_iter()
+          .filter(|x| {
+            true
+              && x.1 == Some(axis)
+              && !x.0.iter().all(|x| {
+                matches!(x, Border(_))
+                  || match ranges.get(x) {
+                    Some((a, b)) => !a.is_nan() && !b.is_nan(),
+                    None => false,
+                  }
+              })
+          });
+        match iter.next() {
+          Some(x) => {
+            assert_eq!(iter.next(), None);
+            x.0
+          }
+          None => continue,
+        }
+      };
+      next_nodes.retain(|x| matches!(x, Region(_)));
+      let next_nodes_count = next_nodes.len();
+      for (i, next_node) in next_nodes.into_iter().enumerate() {
+        println!("");
+        let first = i == 0;
+        let last = i == next_nodes_count - 1;
+        let range = ranges.entry(next_node).or_insert((f64::NAN, f64::NAN));
+        dbg!(node, next_node, first, last, &range);
+        if range.0.is_nan()
+          && (!first
+            || edge_labels[&UnorderedPair(
+              next_node,
+              *div.connections[&next_node].get_item_after(&node).unwrap(),
+            )] != axis)
+        {
+          let t = i as f64 / next_nodes_count as f64;
+          range.0 = end * t + start * (1. - t);
+        }
+        if range.1.is_nan()
+          && (!last
+            || edge_labels[&UnorderedPair(
+              next_node,
+              *div.connections[&next_node].get_item_before(&node).unwrap(),
+            )] != axis)
+        {
+          let t = (i + 1) as f64 / next_nodes_count as f64;
+          range.1 = end * t + start * (1. - t);
+        }
+        dbg!(&range);
+        node_queue.push_back(next_node);
+      }
+    }
+    ranges
   }
 }
 
