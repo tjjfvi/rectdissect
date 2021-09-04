@@ -192,64 +192,59 @@ fn main() {
 }
 
 fn hash_division(div: &Division) -> u64 {
+  struct State<'a> {
+    div: &'a Division,
+    dir: bool,
+    hasher: DefaultHasher,
+    node_id_map: HashMap<Node, u32>,
+    next_node_id: u32,
+  }
   let mut hash = u64::MAX;
-  for (&node_0, connected_nodes) in &div.connections {
-    for &node_1 in connected_nodes.iter() {
-      for dir in [true, false] {
-        let mut hasher = DefaultHasher::new();
-        let mut last_node = node_0;
-        let mut cur_node = node_1;
-        let mut node_id_map = HashMap::new();
-        node_id_map.insert(node_0, 0);
-        let mut node_id_max = 0;
-        let mut visited_edges = HashSet::new();
-        visited_edges.insert((last_node, cur_node));
-        loop {
-          let cur_node_id = *node_id_map.entry(cur_node).or_insert_with(|| {
-            node_id_max += 1;
-            node_id_max
-          });
-          hasher.write_u32(cur_node_id);
-          let visited = cur_node_id != node_id_max;
-          let mut next_node = None;
-          for &node in next_node_candidates(&div, dir, &cur_node, &last_node) {
-            if (visited || node != last_node) && visited_edges.insert((cur_node, node)) {
-              next_node = Some(node);
-              break;
-            }
-          }
-          if let Some(next_node) = next_node {
-            last_node = cur_node;
-            cur_node = next_node;
-          } else {
-            break;
-          }
-        }
-        debug_assert_eq!(cur_node, node_0);
-        debug_assert_eq!(node_id_max, div.regions + 3);
-        debug_assert_eq!(
-          visited_edges.len(),
-          div.connections.values().map(|x| x.len()).sum()
-        );
-        let new_hash = hasher.finish();
-        if new_hash < hash {
-          hash = new_hash
-        }
+  for i in 0..4 {
+    for dir in [true, false] {
+      let mut state = State {
+        div,
+        dir,
+        hasher: DefaultHasher::new(),
+        node_id_map: HashMap::new(),
+        next_node_id: 0,
+      };
+      visit_node(
+        &mut state,
+        Border(i),
+        &Border((i + if dir { 1 } else { 3 }) % 4),
+      );
+      let new_hash = state.hasher.finish();
+      if new_hash < hash {
+        hash = new_hash
       }
     }
   }
   return hash;
-  fn next_node_candidates<'a>(
-    div: &'a Division,
-    dir: bool,
-    from: &Node,
-    start: &'a Node,
-  ) -> impl Iterator<Item = &'a Node> + 'a {
-    let iter = div.connections.get(&from).unwrap().iter_starting_at(&start);
-    if dir {
-      Either::Left(iter)
-    } else {
-      Either::Right(iter.rev())
+  fn visit_node(state: &mut State<'_>, node: Node, last: &Node) {
+    let mut fresh = false;
+    let next_node_id = &mut state.next_node_id;
+    state
+      .hasher
+      .write_u32(*state.node_id_map.entry(node).or_insert_with(|| {
+        fresh = true;
+        std::mem::replace(next_node_id, *next_node_id + 1)
+      }));
+    if fresh {
+      let connected_nodes = state.div.connections.get(&node).unwrap();
+      for &next in maybe_reverse(connected_nodes.iter_starting_at(last), state.dir) {
+        visit_node(state, next, &node);
+      }
+    }
+    fn maybe_reverse<T, I: DoubleEndedIterator<Item = T>>(
+      iter: I,
+      reverse: bool,
+    ) -> Either<I, std::iter::Rev<I>> {
+      if reverse {
+        Either::Left(iter)
+      } else {
+        Either::Right(iter.rev())
+      }
     }
   }
 }
