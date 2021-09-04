@@ -79,8 +79,8 @@ fn foo(div: Division, mut cb: impl FnMut(Division)) {
         .take(connected_nodes.len() + cut_0_ind - 1)
         .skip(cut_0_ind + 2)
       {
-        let must_share_0 = cut_0_ind + connected_nodes.len() - cut_1_ind < 3;
-        let must_share_1 = cut_1_ind - cut_0_ind < 3;
+        let must_share_0 = cut_1_ind - cut_0_ind < 3;
+        let must_share_1 = cut_0_ind + connected_nodes.len() - cut_1_ind < 3;
         for share_0 in [true, false] {
           if must_share_0 && !share_0 {
             continue;
@@ -165,16 +165,19 @@ fn main() {
   let mut set = HashSet::new();
   let mut new_set = HashSet::new();
   set.insert(Division::default());
-  for _ in 1..5 {
+  for i in 1..5 {
+    let mut x = 0;
     println!("{}", set.len());
     for div in set.drain() {
       foo(div, |new_div| {
         if check_valid(&new_div) {
+          x += 1;
           new_set.insert(new_div);
         }
       })
     }
     std::mem::swap(&mut set, &mut new_set);
+    dbg!(x);
   }
   println!("{}", set.len());
   // let mut x = Division::default();
@@ -223,6 +226,11 @@ fn hash_division(div: &Division) -> u64 {
           }
         }
         debug_assert_eq!(cur_node, node_0);
+        debug_assert_eq!(node_id_max, div.regions + 3);
+        debug_assert_eq!(
+          visited_edges.len(),
+          div.connections.values().map(|x| x.len()).sum()
+        );
         let new_hash = hasher.finish();
         if new_hash < hash {
           hash = new_hash
@@ -332,7 +340,6 @@ fn check_valid(div: &Division) -> bool {
           (true, Some(false), Some(false)) => Ok(()),
         }?;
       } else {
-        // dbg!((a, b, c, d));
         add_label(state, a, c, !label)?;
         add_label(state, b, d, !label)?;
         add_label(state, c, d, label)?;
@@ -450,3 +457,9 @@ impl<T: Ord + PartialEq> PartialEq for UnorderedPair<T> {
 }
 
 impl<T: Ord + Eq> Eq for UnorderedPair<T> {}
+
+fn hash(value: impl Hash) -> u64 {
+  let mut hasher = DefaultHasher::new();
+  value.hash(&mut hasher);
+  hasher.finish()
+}
