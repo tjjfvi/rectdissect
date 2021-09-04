@@ -90,14 +90,6 @@ impl<T: Hash + Eq + Clone> CircularOrder<T> {
     }
     Ok(())
   }
-  pub fn reverse(&mut self) {
-    for (a, b) in self.0.values_mut() {
-      std::mem::swap(a, b)
-    }
-  }
-  pub fn contains_item(&self, item: &T) -> bool {
-    self.0.contains_key(item)
-  }
   pub fn len(&self) -> usize {
     self.0.len()
   }
@@ -107,9 +99,6 @@ impl<T: Hash + Eq + Clone> CircularOrder<T> {
   }
   pub fn iter_starting_at<'a>(&'a self, start: &'a T) -> Iter<'a, T> {
     Iter(self, Some((start, start)))
-  }
-  pub fn iter_between<'a>(&'a self, start: &'a T, end: &'a T) -> Iter<'a, T> {
-    Iter(self, Some((start, end)))
   }
 }
 

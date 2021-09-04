@@ -4,7 +4,6 @@ mod division;
 mod generate_layout;
 mod hash_division;
 mod label_edges;
-mod pairhashmap;
 mod unorderedpair;
 
 pub(crate) use circularorder::*;
@@ -13,7 +12,6 @@ pub(crate) use division::*;
 pub(crate) use generate_layout::*;
 pub(crate) use hash_division::*;
 pub(crate) use label_edges::*;
-pub(crate) use pairhashmap::*;
 pub(crate) use unorderedpair::*;
 
 use std::{
