@@ -69,7 +69,7 @@ impl Debug for Node {
 
 use Node::*;
 
-fn foo(div: Division, mut cb: impl FnMut(Division)) {
+fn divide(div: Division, mut cb: impl FnMut(Division)) {
   for region in 0..div.regions {
     let connected_nodes = div.connections.get(&Region(region)).unwrap();
     for (cut_0_ind, cut_0) in connected_nodes.iter().enumerate() {
@@ -168,7 +168,7 @@ fn main() {
   for _ in 1..4 {
     println!("{}", set.len());
     for div in set.drain() {
-      foo(div, |new_div| {
+      divide(div, |new_div| {
         if label_edges(&new_div).is_some() {
           new_set.insert(new_div);
         }
@@ -254,11 +254,11 @@ fn hash_division(div: &Division) -> u64 {
   }
 }
 
-fn label_edges(div: &Division) -> Option<HashMap<UnorderedPair<Node>, bool>> {
+fn label_edges(div: &Division) -> Option<EdgeLabels> {
   // dbg!(div);
   #[derive(Clone, Debug)]
   struct State<'a> {
-    edge_labels: HashMap<UnorderedPair<Node>, bool>,
+    edge_labels: EdgeLabels,
     div: &'a Division,
     /// These edges are part of a 0-1-? triangle, and should be guessed at first
     ambiguous_edges: Vec<UnorderedPair<Node>>,
@@ -396,7 +396,7 @@ struct ConnectedNodesClassification {
 fn classify_connected_nodes(
   node: Node,
   div: &Division,
-  edge_labels: &HashMap<UnorderedPair<Node>, bool>,
+  edge_labels: &EdgeLabels,
 ) -> ConnectedNodesClassification {
   let mut state = ConnectedNodesClassification::default();
   let connected_nodes = div.connections.get(&node).unwrap();
@@ -434,17 +434,16 @@ fn classify_connected_nodes(
   state
 }
 
-fn generate_layout(
-  div: &Division,
-  edge_labels: &HashMap<UnorderedPair<Node>, bool>,
-) -> Vec<[f64; 4]> {
+type EdgeLabels = HashMap<UnorderedPair<Node>, bool>;
+
+fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Vec<[f64; 4]> {
   let layout_x = generate_1d_layout(div, edge_labels, false);
   let layout_y = generate_1d_layout(div, edge_labels, true);
 
   return (0..div.regions)
     .map(|region| {
-      let (x1, x2) = layout_x[&Region(region)];
-      let (y1, y2) = layout_y[&Region(region)];
+      let [x1, x2] = layout_x[&Region(region)];
+      let [y1, y2] = layout_y[&Region(region)];
       debug_assert!(!x1.is_nan() && !x2.is_nan() && !y1.is_nan() && !y2.is_nan());
       [x1, y1, x2, y2]
     })
@@ -452,48 +451,47 @@ fn generate_layout(
 
   fn generate_1d_layout(
     div: &Division,
-    edge_labels: &HashMap<UnorderedPair<Node>, bool>,
+    edge_labels: &EdgeLabels,
     axis: bool,
-  ) -> HashMap<Node, (f64, f64)> {
+  ) -> HashMap<Node, [f64; 2]> {
     let root = if axis { 0 } else { 3 };
     let mut ranges = HashMap::new();
-    ranges.insert(Border(root), (0.0_f64, 1.0_f64));
+    ranges.insert(Border(root), [0.0_f64, 1.0_f64]);
     let mut node_queue = VecDeque::new();
     node_queue.push_back(Border(root));
     while let Some(node) = node_queue.pop_front() {
-      let (start, end) = ranges[&node];
+      let [start, end] = ranges[&node];
       let mut next_nodes = {
         let mut iter = classify_connected_nodes(node, div, edge_labels)
           .vecs
           .into_iter()
-          .filter(|x| {
+          .filter(|(vec, label)| {
             true
-              && x.1 == Some(axis)
-              && !x.0.iter().all(|x| {
-                matches!(x, Border(_))
-                  || match ranges.get(x) {
-                    Some((a, b)) => !a.is_nan() && !b.is_nan(),
-                    None => false,
+              && label == &Some(axis)
+              && vec.iter().any(|node| {
+                matches!(node, Region(_))
+                  && match ranges.get(node) {
+                    Some([a, b]) => a.is_nan() || b.is_nan(),
+                    None => true,
                   }
               })
           });
         match iter.next() {
           Some(x) => {
-            assert_eq!(iter.next(), None);
+            debug_assert_eq!(iter.next(), None);
             x.0
           }
           None => continue,
         }
       };
-      next_nodes.retain(|x| matches!(x, Region(_)));
+      next_nodes.retain(|node| matches!(node, Region(_)));
       let next_nodes_count = next_nodes.len();
       for (i, next_node) in next_nodes.into_iter().enumerate() {
-        println!("");
         let first = i == 0;
         let last = i == next_nodes_count - 1;
-        let range = ranges.entry(next_node).or_insert((f64::NAN, f64::NAN));
+        let range = ranges.entry(next_node).or_insert([f64::NAN, f64::NAN]);
         dbg!(node, next_node, first, last, &range);
-        if range.0.is_nan()
+        if range[0].is_nan()
           && (!first
             || edge_labels[&UnorderedPair(
               next_node,
@@ -501,9 +499,9 @@ fn generate_layout(
             )] != axis)
         {
           let t = i as f64 / next_nodes_count as f64;
-          range.0 = end * t + start * (1. - t);
+          range[0] = end * t + start * (1. - t);
         }
-        if range.1.is_nan()
+        if range[1].is_nan()
           && (!last
             || edge_labels[&UnorderedPair(
               next_node,
@@ -511,7 +509,7 @@ fn generate_layout(
             )] != axis)
         {
           let t = (i + 1) as f64 / next_nodes_count as f64;
-          range.1 = end * t + start * (1. - t);
+          range[1] = end * t + start * (1. - t);
         }
         dbg!(&range);
         node_queue.push_back(next_node);
