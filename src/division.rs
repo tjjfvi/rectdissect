@@ -21,12 +21,12 @@ impl Default for Division {
         for i in 0..4 {
           connections.insert(
             Border(i),
-            CircularOrder::new([Border((i + 1) % 4), Region(0), Border((i + 3) % 4)]),
+            CircularOrder::new(vec![Border((i + 1) % 4), Region(0), Border((i + 3) % 4)]),
           );
         }
         connections.insert(
           Region(0),
-          CircularOrder::new([Border(0), Border(1), Border(2), Border(3)]),
+          CircularOrder::new(vec![Border(0), Border(1), Border(2), Border(3)]),
         );
         connections
       },

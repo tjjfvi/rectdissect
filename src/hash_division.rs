@@ -43,7 +43,9 @@ pub fn hash_division(div: &Division) -> u64 {
     if fresh {
       let connected_nodes = &state.div.connections[&node];
       for &next in maybe_reverse(connected_nodes.iter_starting_at(last), state.dir) {
-        visit_node(state, next, &node);
+        if &next != last {
+          visit_node(state, next, &node);
+        }
       }
     }
     fn maybe_reverse<T, I: DoubleEndedIterator<Item = T>>(

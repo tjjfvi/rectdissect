@@ -76,7 +76,7 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
           && (!first
             || edge_labels[&UnorderedPair(
               next_node,
-              *div.connections[&next_node].get_item_after(&node).unwrap(),
+              *div.connections[&next_node].get_item_after(&node),
             )] != axis)
         {
           let t = i as f64 / next_nodes_count as f64;
@@ -86,7 +86,7 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
           && (!last
             || edge_labels[&UnorderedPair(
               next_node,
-              *div.connections[&next_node].get_item_before(&node).unwrap(),
+              *div.connections[&next_node].get_item_before(&node),
             )] != axis)
         {
           let t = (i + 1) as f64 / next_nodes_count as f64;

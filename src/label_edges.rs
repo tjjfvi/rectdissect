@@ -64,8 +64,8 @@ pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
     }
     let a_connected_nodes = &state.div.connections[&a];
     let b_connected_nodes = &state.div.connections[&b];
-    let (c0, c1) = a_connected_nodes.get_items_around(&b).unwrap();
-    let (d1, d0) = b_connected_nodes.get_items_around(&a).unwrap();
+    let (c0, c1) = a_connected_nodes.get_items_around(&b);
+    let (d1, d0) = b_connected_nodes.get_items_around(&a);
     for (&c, &d) in [(c0, d0), (c1, d1)] {
       if c == d {
         let a_leg = state.edge_labels.get(&UnorderedPair(a, c));

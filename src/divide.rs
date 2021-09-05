@@ -66,60 +66,45 @@ fn _divide(
   let mut new_connections = div.connections.clone();
   {
     let order = new_connections.get_mut(&Region(region)).unwrap();
-    order
-      .delete_items_between(
-        cut_0,
-        &(if share_1 {
-          *cut_1
-        } else {
-          *order.get_item_after(cut_1).unwrap()
-        }),
-      )
-      .unwrap();
-    order
-      .insert_items_after(cut_0, [Region(new_region)])
-      .unwrap();
+    order.delete_items_between(
+      cut_0,
+      &(if share_1 {
+        *cut_1
+      } else {
+        *order.get_item_after(cut_1)
+      }),
+    );
+    order.insert_items_after(cut_0, [Region(new_region)]);
   }
   {
     let mut order = connected_nodes.clone();
-    order
-      .delete_items_between(
-        cut_1,
-        &(if share_0 {
-          *cut_0
-        } else {
-          *order.get_item_after(cut_0).unwrap()
-        }),
-      )
-      .unwrap();
-    order.insert_items_after(cut_1, [Region(region)]).unwrap();
+    order.delete_items_between(
+      cut_1,
+      &(if share_0 {
+        *cut_0
+      } else {
+        *order.get_item_after(cut_0)
+      }),
+    );
+    order.insert_items_after(cut_1, [Region(region)]);
     new_connections.insert(Region(new_region), order);
   }
   for (i, node) in connected_nodes.iter().enumerate() {
     if i == cut_0_ind && share_0 || i == cut_1_ind && share_1 {
       let order = new_connections.get_mut(node).unwrap();
-      order
-        .insert_items_after(
-          &(if i == cut_0_ind {
-            *order.get_item_before(&Region(region)).unwrap()
-          } else {
-            Region(region)
-          }),
-          [Region(new_region)],
-        )
-        .unwrap();
+      order.insert_items_after(
+        &(if i == cut_0_ind {
+          *order.get_item_before(&Region(region))
+        } else {
+          Region(region)
+        }),
+        [Region(new_region)],
+      );
     } else if i > cut_0_ind && i <= cut_1_ind {
       let order = new_connections.get_mut(node).unwrap();
-      let before = order.get_item_before(&Region(region)).unwrap().clone();
-      order
-        .delete_items_between(
-          &before,
-          &order.get_item_after(&Region(region)).unwrap().clone(),
-        )
-        .unwrap();
-      order
-        .insert_items_after(&before, [Region(new_region)])
-        .unwrap();
+      let before = order.get_item_before(&Region(region)).clone();
+      order.delete_items_between(&before, &order.get_item_after(&Region(region)).clone());
+      order.insert_items_after(&before, [Region(new_region)]);
     }
   }
   Division {

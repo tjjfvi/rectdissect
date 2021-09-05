@@ -20,9 +20,11 @@ use std::{
   collections::{hash_map::DefaultHasher, HashMap, HashSet, VecDeque},
   fmt::{Debug, Write},
   hash::{Hash, Hasher},
+  time::Instant,
 };
 
 fn main() {
+  let start = Instant::now();
   let mut set = HashSet::new();
   let mut new_set = HashSet::new();
   set.insert(Division::default());
@@ -37,4 +39,5 @@ fn main() {
     }
     std::mem::swap(&mut set, &mut new_set);
   }
+  println!("{:?}", start.elapsed());
 }
