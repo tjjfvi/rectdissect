@@ -153,7 +153,7 @@ pub fn classify_connected_nodes(
     let label = edge_labels
       .get(&UnorderedPair(node, connected_node))
       .cloned();
-    match edge_labels.get(&UnorderedPair(node, connected_node)) {
+    match label {
       Some(true) => &mut state.all_true,
       Some(false) => &mut state.all_false,
       None => &mut state.all_none,
