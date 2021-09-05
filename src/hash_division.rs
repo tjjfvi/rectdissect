@@ -6,8 +6,7 @@ pub fn hash_division(div: &Division) -> u64 {
     div: &'a Division,
     dir: bool,
     hasher: DefaultHasher,
-    node_id_map: HashMap<Node, u32>,
-    next_node_id: u32,
+    node_ids: Vec<Node>,
   }
   let mut hash = u64::MAX;
   for i in 0..4 {
@@ -16,8 +15,7 @@ pub fn hash_division(div: &Division) -> u64 {
         div,
         dir,
         hasher: DefaultHasher::new(),
-        node_id_map: HashMap::new(),
-        next_node_id: 0,
+        node_ids: vec![],
       };
       visit_node(
         &mut state,
@@ -33,13 +31,17 @@ pub fn hash_division(div: &Division) -> u64 {
   return hash;
   fn visit_node(state: &mut State<'_>, node: Node, last: &Node) {
     let mut fresh = false;
-    let next_node_id = &mut state.next_node_id;
-    state
-      .hasher
-      .write_u32(*state.node_id_map.entry(node).or_insert_with(|| {
+    let id = state
+      .node_ids
+      .iter()
+      .position(|x| x == &node)
+      .unwrap_or_else(|| {
+        let id = state.node_ids.len();
         fresh = true;
-        std::mem::replace(next_node_id, *next_node_id + 1)
-      }));
+        state.node_ids.push(node);
+        id
+      });
+    state.hasher.write_usize(id);
     if fresh {
       let connected_nodes = &state.div.connections[&node];
       for &next in maybe_reverse(connected_nodes.iter_starting_at(last), state.dir) {
