@@ -1,6 +1,24 @@
 use crate::*;
 
-pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Vec<[f64; 4]> {
+pub struct Rect {
+  pub x1: f64,
+  pub y1: f64,
+  pub x2: f64,
+  pub y2: f64,
+}
+
+impl Rect {
+  pub fn width(&self) -> f64 {
+    self.x2 - self.x1
+  }
+  pub fn height(&self) -> f64 {
+    self.y2 - self.y1
+  }
+}
+
+pub type Layout = Vec<Rect>;
+
+pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
   let layout_x = generate_1d_layout(div, edge_labels, false);
   let layout_y = generate_1d_layout(div, edge_labels, true);
 
@@ -9,7 +27,7 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Vec<[f64; 4]
       let [x1, x2] = layout_x[&Region(region)];
       let [y1, y2] = layout_y[&Region(region)];
       debug_assert!(!x1.is_nan() && !x2.is_nan() && !y1.is_nan() && !y2.is_nan());
-      [x1, y1, x2, y2]
+      Rect { x1, y1, x2, y2 }
     })
     .collect();
 
