@@ -25,18 +25,18 @@ use std::{
 
 fn main() {
   let start = Instant::now();
-  let mut set = HashSet::new();
-  let mut new_set = HashSet::new();
-  set.insert(Division::default());
+  let mut divs = HashMap::new();
+  let mut new_divs = HashMap::new();
+  divs.insert(hash_division(&Division::default()), Division::default());
   for i in 2..=8 {
-    for div in set.drain() {
+    for (_, div) in divs.drain() {
       for new_div in divide(div) {
-        new_set.insert(new_div);
+        new_divs.insert(hash_division(&new_div), new_div);
       }
     }
-    new_set.retain(|div| label_edges(div).is_some());
-    std::mem::swap(&mut set, &mut new_set);
-    println!("{}: {}", i, set.len());
+    new_divs.retain(|_, div| label_edges(div).is_some());
+    std::mem::swap(&mut divs, &mut new_divs);
+    println!("{}: {}", i, divs.len());
   }
   println!("{:?}", start.elapsed());
 }

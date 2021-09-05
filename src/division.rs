@@ -6,12 +6,6 @@ pub struct Division {
   pub connections: HashMap<Node, CircularOrder<Node>>,
 }
 
-impl Hash for Division {
-  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-    state.write_u64(hash_division(self));
-  }
-}
-
 impl Default for Division {
   fn default() -> Self {
     Division {
@@ -33,14 +27,6 @@ impl Default for Division {
     }
   }
 }
-
-impl PartialEq for Division {
-  fn eq(&self, other: &Self) -> bool {
-    hash_division(self) == hash_division(other)
-  }
-}
-
-impl Eq for Division {}
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Node {
