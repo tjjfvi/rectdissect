@@ -15,7 +15,7 @@ pub fn hash_division(div: &Division) -> u64 {
         div,
         dir,
         hasher: DefaultHasher::new(),
-        node_ids: vec![],
+        node_ids: Vec::with_capacity((div.regions + 4) as usize),
       };
       visit_node(
         &mut state,
