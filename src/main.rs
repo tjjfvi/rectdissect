@@ -28,16 +28,15 @@ fn main() {
   let mut set = HashSet::new();
   let mut new_set = HashSet::new();
   set.insert(Division::default());
-  for i in 2..9 {
-    println!("{}: {}", i, set.len());
+  for i in 2..=8 {
     for div in set.drain() {
       for new_div in divide(div) {
-        if label_edges(&new_div).is_some() {
-          new_set.insert(new_div);
-        }
+        new_set.insert(new_div);
       }
     }
+    new_set.retain(|div| label_edges(div).is_some());
     std::mem::swap(&mut set, &mut new_set);
+    println!("{}: {}", i, set.len());
   }
   println!("{:?}", start.elapsed());
 }
