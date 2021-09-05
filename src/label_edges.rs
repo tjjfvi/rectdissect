@@ -23,7 +23,7 @@ pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
       .collect(),
   };
   let mut labels_todo = Vec::new();
-  let mut nodes_todo = HashSet::new();
+  let mut nodes_todo = Vec::new();
   for border_n in 0..4 {
     for &node in div.connections[&Border(border_n)].iter() {
       labels_todo.push((
@@ -36,7 +36,15 @@ pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
   flush_todos(&mut state, &mut labels_todo, &mut nodes_todo)?;
   let mut states = vec![state];
   while let Some(mut state) = states.pop() {
+    debug_assert!(labels_todo.is_empty());
+    debug_assert!(nodes_todo.is_empty());
     if state.unlabeled_edges.len() == 0 {
+      if cfg!(debug_assertions) {
+        nodes_todo.extend((0..4).map(|x| Border(x)));
+        nodes_todo.extend((0..div.regions).map(|x| Region(x)));
+        assert!(flush_todos(&mut state, &mut labels_todo, &mut nodes_todo).is_some());
+        assert!(nodes_todo.is_empty());
+      }
       return Some(state.edge_labels); // All edges have been labeled successfully
     }
     let edge = state
@@ -63,7 +71,7 @@ pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
 fn flush_todos(
   state: &mut State,
   labels_todo: &mut Vec<(Node, Node, bool)>,
-  nodes_todo: &mut HashSet<Node>,
+  nodes_todo: &mut Vec<Node>,
 ) -> Option<()> {
   loop {
     if let Some((a, b, label)) = labels_todo.pop() {
@@ -110,9 +118,9 @@ fn flush_todos(
           return None;
         }
       }
-      nodes_todo.insert(a);
-      nodes_todo.insert(b);
-    } else if let Some(node) = nodes_todo.drain().next() {
+      nodes_todo.push(a);
+      nodes_todo.push(b);
+    } else if let Some(node) = nodes_todo.pop() {
       if matches!(node, Border(_)) {
         continue;
       }
@@ -134,15 +142,12 @@ fn flush_todos(
           }
           continue;
         }
-        if all_true.len() + all_none.len() == 2 {
+        if all_false.len() + all_none.len() == 2 {
           for &connected_node in &all_none {
-            labels_todo.push((node, connected_node, true));
+            labels_todo.push((node, connected_node, false));
           }
           continue;
         }
-      }
-      if all_true.len() == 0 || all_false.len() == 0 {
-        continue;
       }
       if all_none.len() == 0 && (true_vecs_count != 2 || false_vecs_count != 2) {
         return None;

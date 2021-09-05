@@ -18,7 +18,7 @@ pub(crate) use unorderedpair::*;
 
 use std::{
   collections::{hash_map::DefaultHasher, HashMap, HashSet, VecDeque},
-  fmt::{Debug, Write},
+  fmt::Debug,
   hash::{Hash, Hasher},
   time::Instant,
 };
@@ -30,13 +30,21 @@ fn main() {
   divs.insert(hash_division(&Division::default()), Division::default());
   for i in 2..=8 {
     for (_, div) in divs.drain() {
-      for new_div in divide(div) {
+      for new_div in divide(&div) {
         new_divs.insert(hash_division(&new_div), new_div);
       }
     }
     new_divs.retain(|_, div| label_edges(div).is_some());
     std::mem::swap(&mut divs, &mut new_divs);
-    println!("{}: {}", i, divs.len());
+    eprintln!("{}: {}", i, divs.len());
   }
-  println!("{:?}", start.elapsed());
+  eprintln!("{:?}", start.elapsed());
+  println!(
+    "{}",
+    generate_svg(
+      divs
+        .values()
+        .map(|div| generate_layout(div, &label_edges(div).unwrap()))
+    )
+  )
 }

@@ -1,6 +1,9 @@
-use std::hash::{Hash, Hasher};
+use std::{
+  fmt::Debug,
+  hash::{Hash, Hasher},
+};
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Default, Clone, Copy)]
 pub struct UnorderedPair<T>(pub T, pub T);
 
 impl<T: Ord> From<UnorderedPair<T>> for (T, T) {
@@ -36,3 +39,9 @@ impl<T: Ord + PartialEq> PartialEq for UnorderedPair<T> {
 }
 
 impl<T: Ord + Eq> Eq for UnorderedPair<T> {}
+
+impl<T: Debug> Debug for UnorderedPair<T> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{:?}-{:?}", self.0, self.1)
+  }
+}

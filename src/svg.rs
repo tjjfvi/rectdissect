@@ -11,7 +11,7 @@ pub fn generate_svg(
   let width = std::cmp::min(layouts.len(), max_row_width);
   let height = (layouts.len() + max_row_width - 1) / max_row_width;
   let mut str = format!(
-    r#"<svg viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"#,
+    r#"<svg viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg" style="height: auto">"#,
     width as f64 * (square_size + padding) + padding,
     height as f64 * (square_size + padding) + padding
   );

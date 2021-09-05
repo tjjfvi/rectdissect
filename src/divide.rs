@@ -1,10 +1,7 @@
 use crate::*;
 
-pub fn divide(div: Division) -> impl Iterator<Item = Division> {
+pub fn divide<'a>(div: &'a Division) -> impl Iterator<Item = Division> + 'a {
   (0..div.regions).flat_map(move |region| {
-    // We know that &div will live as long as the root Iterator, so it's safe to extend its lifetime
-    let div = unsafe { std::mem::transmute::<_, &Division>(&div) };
-
     let connected_nodes = (&div.connections).get(&Region(region)).unwrap();
     connected_nodes
       .iter()
@@ -16,8 +13,12 @@ pub fn divide(div: Division) -> impl Iterator<Item = Division> {
           .take(connected_nodes.len() + cut_0_ind - 1)
           .skip(cut_0_ind + 2)
           .flat_map(move |(cut_1_ind, cut_1)| {
-            let must_share_0 = cut_1_ind - cut_0_ind < 3;
-            let must_share_1 = cut_0_ind + connected_nodes.len() - cut_1_ind < 3;
+            let must_share_0 = cut_1_ind - cut_0_ind < 3
+              || matches!(cut_0, Border(_))
+              || matches!(connected_nodes.get_item_after(&cut_0), Border(_));
+            let must_share_1 = cut_0_ind + connected_nodes.len() - cut_1_ind < 3
+              || matches!(cut_1, Border(_))
+              || matches!(connected_nodes.get_item_after(&cut_1), Border(_));
             [true, false]
               .iter()
               .flat_map(move |&share_0| {

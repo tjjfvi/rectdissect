@@ -44,20 +44,31 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
     while let Some(node) = node_queue.pop_front() {
       let [start, end] = ranges[&node];
       let mut next_nodes = {
-        let mut iter = classify_connected_nodes(node, div, edge_labels)
-          .vecs
-          .into_iter()
-          .filter(|(vec, label)| {
-            true
-              && label == &Some(axis)
-              && vec.iter().any(|node| {
-                matches!(node, Region(_))
-                  && match ranges.get(node) {
-                    Some([a, b]) => a.is_nan() || b.is_nan(),
-                    None => true,
-                  }
-              })
-          });
+        let classification = classify_connected_nodes(node, div, edge_labels);
+        if matches!(node, Region(_)) {
+          debug_assert_eq!(
+            (
+              classification.vecs.len(),
+              classification.true_vecs_count,
+              classification.false_vecs_count,
+              classification.all_none.len(),
+              classification.all_true.len() == 0,
+              classification.all_false.len() == 0,
+            ),
+            (4, 2, 2, 0, false, false)
+          );
+        }
+        let mut iter = classification.vecs.into_iter().filter(|(vec, label)| {
+          true
+            && label == &Some(axis)
+            && vec.iter().any(|node| {
+              matches!(node, Region(_))
+                && match ranges.get(node) {
+                  Some([a, b]) => a.is_nan() || b.is_nan(),
+                  None => true,
+                }
+            })
+        });
         match iter.next() {
           Some(x) => {
             debug_assert_eq!(iter.next(), None);
