@@ -48,6 +48,9 @@ impl<T: Eq> CircularOrder<T> {
     let i = self.index(start);
     Iter(self, Some((i, i)))
   }
+  pub fn contains_item(&self, item: &T) -> bool {
+    self.0.contains(item)
+  }
 }
 
 impl<T: Eq + Debug> Debug for CircularOrder<T> {
