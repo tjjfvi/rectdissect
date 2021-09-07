@@ -1,5 +1,6 @@
 use crate::*;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Rect {
   pub x1: f64,
   pub y1: f64,
@@ -22,6 +23,9 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
   let layout_x = generate_1d_layout(div, edge_labels, false);
   let layout_y = generate_1d_layout(div, edge_labels, true);
 
+  debug_assert_eq!(layout_x.len() as u32, div.regions + 1);
+  debug_assert_eq!(layout_y.len() as u32, div.regions + 1);
+
   return (0..div.regions)
     .map(|region| {
       let [x1, x2] = layout_x[&Region(region)];
@@ -40,8 +44,8 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
     let mut ranges = HashMap::new();
     ranges.insert(Border(root), [0.0_f64, 1.0_f64]);
     let mut node_queue = VecDeque::new();
-    node_queue.push_back(Border(root));
-    while let Some(node) = node_queue.pop_front() {
+    node_queue.push_back((Border(root), Border(root)));
+    while let Some((node, last)) = node_queue.pop_front() {
       let [start, end] = ranges[&node];
       let mut next_nodes = {
         let classification = classify_connected_nodes(node, div, edge_labels);
@@ -58,17 +62,10 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
             (4, 2, 2, 0, false, false)
           );
         }
-        let mut iter = classification.vecs.into_iter().filter(|(vec, label)| {
-          true
-            && label == &Some(axis)
-            && vec.iter().any(|node| {
-              matches!(node, Region(_))
-                && match ranges.get(node) {
-                  Some([a, b]) => a.is_nan() || b.is_nan(),
-                  None => true,
-                }
-            })
-        });
+        let mut iter = classification
+          .vecs
+          .into_iter()
+          .filter(|(vec, label)| label == &Some(axis) && !vec.contains(&last));
         match iter.next() {
           Some(x) => {
             debug_assert_eq!(iter.next(), None);
@@ -103,7 +100,7 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
           let t = (i + 1) as f64 / next_nodes_count as f64;
           range[1] = end * t + start * (1. - t);
         }
-        node_queue.push_back(next_node);
+        node_queue.push_back((next_node, node));
       }
     }
     ranges
