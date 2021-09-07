@@ -43,4 +43,30 @@ impl Debug for Node {
   }
 }
 
-pub use Node::*;
+pub use Node::{Border, Region};
+
+macro_rules! _node_consts {
+  ($kind:ident $($name:ident $num:expr)+) => {
+    $(pub const $name: Node = $kind($num);)+
+  };
+}
+
+impl Node {
+  #![allow(non_upper_case_globals, dead_code)]
+  _node_consts!(Border b0 0 b1 1 b2 2 b3 3);
+  _node_consts!(Region r0 0 r1 1 r2 2 r3 3 r4 4 r5 5 r6 6 r7 7 r8 8 r9 9 r10 10 r11 11 r12 12 r13 13 r14 14 r15 15);
+}
+
+#[macro_export]
+macro_rules! division {
+  ( regions : $regions:expr, connections : { $( $a:ident : [ $( $b:ident , )+ ] , )+ }, ) => {
+    $crate::Division {
+      regions: $regions,
+      connections: {
+        let mut map = std::collections::HashMap::with_capacity($regions + 4);
+        $(map.insert(Node::$a, $crate::CircularOrder::new(vec![$(Node::$b),+]));)+
+        map
+      },
+    }
+  };
+}
