@@ -17,7 +17,10 @@ pub(crate) use svg::*;
 pub(crate) use unorderedpair::*;
 
 use std::{
-  collections::{hash_map::DefaultHasher, HashMap, HashSet, VecDeque},
+  collections::{
+    hash_map::{DefaultHasher, Entry},
+    HashMap, HashSet, VecDeque,
+  },
   fmt::Debug,
   hash::{Hash, Hasher},
   time::Instant,
@@ -31,10 +34,15 @@ fn main() {
   for i in 2..=8 {
     for (_, div) in divs.drain() {
       for new_div in divide(&div) {
-        new_divs.insert(hash_division(&new_div), new_div);
+        let hash = hash_division(&new_div);
+        let entry = new_divs.entry(hash);
+        if let Entry::Vacant(entry) = entry {
+          if label_edges(&new_div).is_some() {
+            entry.insert(new_div);
+          }
+        }
       }
     }
-    new_divs.retain(|_, div| label_edges(div).is_some());
     std::mem::swap(&mut divs, &mut new_divs);
     eprintln!("{}: {}", i, divs.len());
   }
