@@ -47,12 +47,5 @@ fn main() {
     eprintln!("{}: {}", i, divs.len());
   }
   eprintln!("{:?}", start.elapsed());
-  println!(
-    "{}",
-    generate_svg(
-      divs
-        .values()
-        .map(|div| generate_layout(div, &label_edges(div).unwrap()))
-    )
-  )
+  println!("{}", generate_svg(&divs));
 }
