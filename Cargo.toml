@@ -8,6 +8,8 @@ edition = "2018"
 
 [dependencies]
 either="1.6.1"
+chashmap="2.2.2"
+rayon="1.5.1"
 
 [profile.release]
 debug = true

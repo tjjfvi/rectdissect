@@ -7,6 +7,7 @@ mod label_edges;
 mod svg;
 mod unorderedpair;
 
+use chashmap::CHashMap;
 pub(crate) use circularorder::*;
 pub(crate) use divide::*;
 pub(crate) use division::*;
@@ -16,11 +17,9 @@ pub(crate) use label_edges::*;
 pub(crate) use svg::*;
 pub(crate) use unorderedpair::*;
 
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::{
-  collections::{
-    hash_map::{DefaultHasher, Entry},
-    HashMap, HashSet, VecDeque,
-  },
+  collections::{hash_map::DefaultHasher, HashMap, HashSet, VecDeque},
   fmt::Debug,
   hash::{Hash, Hasher},
   time::Instant,
@@ -28,24 +27,43 @@ use std::{
 
 fn main() {
   let start = Instant::now();
-  let mut divs = HashMap::new();
-  let mut new_divs = HashMap::new();
+  let mut divs = CHashMap::new();
   divs.insert(hash_division(&Division::default()), Division::default());
-  for i in 2..=8 {
-    for (_, div) in divs.drain() {
-      for new_div in divide(&div) {
+  for i in 2.. {
+    let start2 = Instant::now();
+    std::mem::replace(&mut divs, CHashMap::new())
+      .into_iter()
+      .flat_map(|(_, div)| {
+        let div_box = Box::new(div);
+        let div = unsafe { ignore_lifetime(&*div_box) };
+        divide(div).chain(
+          std::iter::once_with(move || {
+            drop(div_box);
+            None
+          })
+          .flatten(),
+        )
+      })
+      .par_bridge()
+      .for_each(|new_div| {
         let hash = hash_division(&new_div);
-        let entry = new_divs.entry(hash);
-        if let Entry::Vacant(entry) = entry {
+        if !divs.contains_key(&hash) {
           if label_edges(&new_div).is_some() {
-            entry.insert(new_div);
+            divs.insert(hash, new_div);
           }
         }
-      }
-    }
-    std::mem::swap(&mut divs, &mut new_divs);
-    eprintln!("{}: {}", i, divs.len());
+      });
+    eprintln!(
+      "{}: {} (took {:.1?}, total {:.1?})",
+      i,
+      divs.len(),
+      start2.elapsed(),
+      start.elapsed()
+    );
   }
-  eprintln!("{:?}", start.elapsed());
-  println!("{}", generate_svg(&divs));
+  // println!("{}", generate_svg(&divs, n));
+}
+
+unsafe fn ignore_lifetime<T>(ptr: &'_ T) -> &'static T {
+  std::mem::transmute(ptr)
 }
