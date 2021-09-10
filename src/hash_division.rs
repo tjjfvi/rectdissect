@@ -19,8 +19,8 @@ pub fn hash_division(div: &Division) -> u64 {
       };
       visit_node(
         &mut state,
-        Border(i),
-        &Border((i + if dir { 1 } else { 3 }) % 4),
+        Node::border(i),
+        &Node::border(i + if dir { 1 } else { 3 }),
       );
       let new_hash = state.hasher.finish();
       if new_hash < hash {

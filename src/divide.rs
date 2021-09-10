@@ -2,7 +2,7 @@ use crate::*;
 
 pub fn divide<'a>(div: &'a Division) -> impl Iterator<Item = Division> + 'a {
   (0..div.regions).flat_map(move |region| {
-    let connected_nodes = (&div.connections).get(&Region(region)).unwrap();
+    let connected_nodes = (&div.connections).get(&Node::region(region)).unwrap();
     connected_nodes
       .iter()
       .enumerate()
@@ -14,11 +14,11 @@ pub fn divide<'a>(div: &'a Division) -> impl Iterator<Item = Division> + 'a {
           .skip(cut_0_ind + 2)
           .flat_map(move |(cut_1_ind, cut_1)| {
             let must_share_0 = cut_1_ind - cut_0_ind < 3
-              || matches!(cut_0, Border(_))
-              || matches!(connected_nodes.get_item_after(&cut_0), Border(_));
+              || cut_0.is_border()
+              || connected_nodes.get_item_after(&cut_0).is_border();
             let must_share_1 = cut_0_ind + connected_nodes.len() - cut_1_ind < 3
-              || matches!(cut_1, Border(_))
-              || matches!(connected_nodes.get_item_after(&cut_1), Border(_));
+              || cut_1.is_border()
+              || connected_nodes.get_item_after(&cut_1).is_border();
             [true, false]
               .iter()
               .flat_map(move |&share_0| {
@@ -66,7 +66,7 @@ fn _divide(
   let new_region = div.regions;
   let mut new_connections = div.connections.clone();
   {
-    let order = new_connections.get_mut(&Region(region)).unwrap();
+    let order = new_connections.get_mut(&Node::region(region)).unwrap();
     order.delete_items_between(
       cut_0,
       &(if share_1 {
@@ -75,7 +75,7 @@ fn _divide(
         *order.get_item_after(cut_1)
       }),
     );
-    order.insert_items_after(cut_0, [Region(new_region)]);
+    order.insert_items_after(cut_0, [Node::region(new_region)]);
   }
   {
     let mut order = connected_nodes.clone();
@@ -87,25 +87,28 @@ fn _divide(
         *order.get_item_after(cut_0)
       }),
     );
-    order.insert_items_after(cut_1, [Region(region)]);
-    new_connections.insert(Region(new_region), order);
+    order.insert_items_after(cut_1, [Node::region(region)]);
+    new_connections.insert(Node::region(new_region), order);
   }
   for (i, node) in connected_nodes.iter().enumerate() {
     if i == cut_0_ind && share_0 || i == cut_1_ind && share_1 {
       let order = new_connections.get_mut(node).unwrap();
       order.insert_items_after(
         &(if i == cut_0_ind {
-          *order.get_item_before(&Region(region))
+          *order.get_item_before(&Node::region(region))
         } else {
-          Region(region)
+          Node::region(region)
         }),
-        [Region(new_region)],
+        [Node::region(new_region)],
       );
     } else if i > cut_0_ind && i <= cut_1_ind {
       let order = new_connections.get_mut(node).unwrap();
-      let before = order.get_item_before(&Region(region)).clone();
-      order.delete_items_between(&before, &order.get_item_after(&Region(region)).clone());
-      order.insert_items_after(&before, [Region(new_region)]);
+      let before = order.get_item_before(&Node::region(region)).clone();
+      order.delete_items_between(
+        &before,
+        &order.get_item_after(&Node::region(region)).clone(),
+      );
+      order.insert_items_after(&before, [Node::region(new_region)]);
     }
   }
   Division {

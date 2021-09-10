@@ -25,11 +25,11 @@ pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
   let mut labels_todo = Vec::new();
   let mut nodes_todo = Vec::new();
   for border_n in 0..4 {
-    for &node in div.connections[&Border(border_n)].iter() {
+    for &node in div.connections[&Node::border(border_n)].iter() {
       labels_todo.push((
-        Border(border_n),
+        Node::border(border_n),
         node,
-        matches!(node, Border(_)) || border_n % 2 == 0,
+        node.is_border() || border_n % 2 == 0,
       ));
     }
   }
@@ -40,8 +40,8 @@ pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
     debug_assert!(nodes_todo.is_empty());
     if state.unlabeled_edges.len() == 0 {
       if cfg!(debug_assertions) {
-        nodes_todo.extend((0..4).map(|x| Border(x)));
-        nodes_todo.extend((0..div.regions).map(|x| Region(x)));
+        nodes_todo.extend((0..4).map(|x| Node::border(x)));
+        nodes_todo.extend((0..div.regions).map(|x| Node::region(x)));
         assert!(flush_todos(&mut state, &mut labels_todo, &mut nodes_todo).is_some());
         assert!(nodes_todo.is_empty());
       }
@@ -76,7 +76,7 @@ fn flush_todos(
   loop {
     if let Some((a, b, label)) = labels_todo.pop() {
       state.unlabeled_edges.remove(&UnorderedPair(a, b));
-      if matches!((a, b), (Border(_), Border(_))) {
+      if a.is_border() && b.is_border() {
         continue;
       }
       if let Some(prev_label) = state.edge_labels.insert(UnorderedPair(a, b), label) {
@@ -121,7 +121,7 @@ fn flush_todos(
       nodes_todo.push(a);
       nodes_todo.push(b);
     } else if let Some(node) = nodes_todo.pop() {
-      if matches!(node, Border(_)) {
+      if node.is_border() {
         continue;
       }
       let ConnectedNodesClassification {

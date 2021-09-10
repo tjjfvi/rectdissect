@@ -28,8 +28,8 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
 
   return (0..div.regions)
     .map(|region| {
-      let [x1, x2] = layout_x[&Region(region)];
-      let [y1, y2] = layout_y[&Region(region)];
+      let [x1, x2] = layout_x[&Node::region(region)];
+      let [y1, y2] = layout_y[&Node::region(region)];
       debug_assert!(!x1.is_nan() && !x2.is_nan() && !y1.is_nan() && !y2.is_nan());
       Rect { x1, y1, x2, y2 }
     })
@@ -42,14 +42,14 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
   ) -> HashMap<Node, [f64; 2]> {
     let root = if axis { 0 } else { 3 };
     let mut ranges = HashMap::new();
-    ranges.insert(Border(root), [0.0_f64, 1.0_f64]);
+    ranges.insert(Node::border(root), [0.0_f64, 1.0_f64]);
     let mut node_queue = VecDeque::new();
-    node_queue.push_back((Border(root), Border(root)));
+    node_queue.push_back((Node::border(root), Node::border(root)));
     while let Some((node, last)) = node_queue.pop_front() {
       let [start, end] = ranges[&node];
       let mut next_nodes = {
         let classification = classify_connected_nodes(node, div, edge_labels);
-        if matches!(node, Region(_)) {
+        if node.is_region() {
           debug_assert_eq!(
             (
               classification.vecs.len(),
@@ -74,7 +74,7 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
           None => continue,
         }
       };
-      next_nodes.retain(|node| matches!(node, Region(_)));
+      next_nodes.retain(Node::is_region);
       let next_nodes_count = next_nodes.len();
       for (i, next_node) in next_nodes.into_iter().enumerate() {
         let first = i == 0;

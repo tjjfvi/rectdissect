@@ -14,13 +14,22 @@ impl Default for Division {
         let mut connections = HashMap::new();
         for i in 0..4 {
           connections.insert(
-            Border(i),
-            CircularOrder::new(vec![Border((i + 1) % 4), Region(0), Border((i + 3) % 4)]),
+            Node::border(i),
+            CircularOrder::new(vec![
+              Node::border(i + 1),
+              Node::region(0),
+              Node::border(i + 3),
+            ]),
           );
         }
         connections.insert(
-          Region(0),
-          CircularOrder::new(vec![Border(0), Border(1), Border(2), Border(3)]),
+          Node::region(0),
+          CircularOrder::new(vec![
+            Node::border(0),
+            Node::border(1),
+            Node::border(2),
+            Node::border(3),
+          ]),
         );
         connections
       },
@@ -29,32 +38,43 @@ impl Default for Division {
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Node {
-  Border(u8),
-  Region(u8),
+pub struct Node(u8);
+
+impl Node {
+  pub const fn border(n: u8) -> Node {
+    Node(n % 4)
+  }
+  pub const fn region(n: u8) -> Node {
+    Node(n + 4)
+  }
+  pub const fn is_border(&self) -> bool {
+    self.0 < 4
+  }
+  pub const fn is_region(&self) -> bool {
+    self.0 >= 4
+  }
 }
 
 impl Debug for Node {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      Border(x) => write!(f, "b{}", x),
-      Region(x) => write!(f, "r{}", x),
+    if self.0 < 4 {
+      write!(f, "b{}", self.0)
+    } else {
+      write!(f, "r{}", self.0 - 4)
     }
   }
 }
 
-pub use Node::{Border, Region};
-
 macro_rules! _node_consts {
   ($kind:ident $($name:ident $num:expr)+) => {
-    $(pub const $name: Node = $kind($num);)+
+    $(pub const $name: Node = Node::$kind($num);)+
   };
 }
 
 impl Node {
   #![allow(non_upper_case_globals, dead_code)]
-  _node_consts!(Border b0 0 b1 1 b2 2 b3 3);
-  _node_consts!(Region r0 0 r1 1 r2 2 r3 3 r4 4 r5 5 r6 6 r7 7 r8 8 r9 9 r10 10 r11 11 r12 12 r13 13 r14 14 r15 15);
+  _node_consts!(border b0 0 b1 1 b2 2 b3 3);
+  _node_consts!(region r0 0 r1 1 r2 2 r3 3 r4 4 r5 5 r6 6 r7 7 r8 8 r9 9 r10 10 r11 11 r12 12 r13 13 r14 14 r15 15);
 }
 
 #[macro_export]
