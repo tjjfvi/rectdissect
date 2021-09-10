@@ -8,30 +8,14 @@ pub struct Division {
 
 impl Default for Division {
   fn default() -> Self {
-    Division {
+    division! {
       regions: 1,
       connections: {
-        let mut connections = HashMap::new();
-        for i in 0..4 {
-          connections.insert(
-            Node::border(i),
-            CircularOrder::new(vec![
-              Node::border(i + 1),
-              Node::region(0),
-              Node::border(i + 3),
-            ]),
-          );
-        }
-        connections.insert(
-          Node::region(0),
-          CircularOrder::new(vec![
-            Node::border(0),
-            Node::border(1),
-            Node::border(2),
-            Node::border(3),
-          ]),
-        );
-        connections
+        b0: [b1, r0, b3],
+        b1: [b2, r0, b0],
+        b2: [b3, r0, b1],
+        b3: [b0, r0, b2],
+        r0: [b0, b1, b2, b3],
       },
     }
   }
@@ -79,7 +63,7 @@ impl Node {
 
 #[macro_export]
 macro_rules! division {
-  ( regions : $regions:expr, connections : { $( $a:ident : [ $( $b:ident , )+ ] , )+ }, ) => {
+  ( regions : $regions:expr , connections : { $( $a:ident : [ $( $b:ident ),+ $(,)? ] ),+ $(,)? } $(,)? ) => {
     $crate::Division {
       regions: $regions,
       connections: {
