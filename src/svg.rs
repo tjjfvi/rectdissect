@@ -1,5 +1,5 @@
 use crate::*;
-use std::fmt::Write;
+use std::{collections::HashMap, fmt::Write};
 
 pub fn generate_svg(divs: &HashMap<u64, Division>) -> String {
   let max_row_width = 5;

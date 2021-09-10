@@ -1,3 +1,5 @@
+use std::collections::{HashMap, VecDeque};
+
 use crate::*;
 
 #[derive(Debug, Clone, Copy)]
@@ -23,10 +25,10 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
   let layout_x = generate_1d_layout(div, edge_labels, false);
   let layout_y = generate_1d_layout(div, edge_labels, true);
 
-  debug_assert_eq!(layout_x.len() as u8, div.regions + 1);
-  debug_assert_eq!(layout_y.len() as u8, div.regions + 1);
+  debug_assert_eq!(layout_x.len() as u8, div.regions() + 1);
+  debug_assert_eq!(layout_y.len() as u8, div.regions() + 1);
 
-  return (0..div.regions)
+  return (0..div.regions())
     .map(|region| {
       let [x1, x2] = layout_x[&Node::region(region)];
       let [y1, y2] = layout_y[&Node::region(region)];
@@ -82,20 +84,14 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
         let range = ranges.entry(next_node).or_insert([f64::NAN, f64::NAN]);
         if range[0].is_nan()
           && (!first
-            || edge_labels[&UnorderedPair(
-              next_node,
-              *div.connections[&next_node].get_item_after(&node),
-            )] != axis)
+            || edge_labels[&UnorderedPair(next_node, div[next_node].get_item_after(node))] != axis)
         {
           let t = i as f64 / next_nodes_count as f64;
           range[0] = end * t + start * (1. - t);
         }
         if range[1].is_nan()
           && (!last
-            || edge_labels[&UnorderedPair(
-              next_node,
-              *div.connections[&next_node].get_item_before(&node),
-            )] != axis)
+            || edge_labels[&UnorderedPair(next_node, div[next_node].get_item_before(node))] != axis)
         {
           let t = (i + 1) as f64 / next_nodes_count as f64;
           range[1] = end * t + start * (1. - t);

@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::*;
 
 pub type EdgeLabels = HashMap<UnorderedPair<Node>, bool>;
@@ -16,16 +18,15 @@ pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
     edge_labels: HashMap::new(),
     ambiguous_edges: vec![],
     div,
-    unlabeled_edges: div
-      .connections
-      .iter()
-      .flat_map(|(&key_a, x)| x.iter().map(move |&key_b| UnorderedPair(key_a, key_b)))
+    unlabeled_edges: (0..div.regions() + 4)
+      .map(|x| Node(x))
+      .flat_map(|a| div[a].iter().map(move |b| UnorderedPair(a, b)))
       .collect(),
   };
   let mut labels_todo = Vec::new();
   let mut nodes_todo = Vec::new();
   for border_n in 0..4 {
-    for &node in div.connections[&Node::border(border_n)].iter() {
+    for node in div[Node::border(border_n)].iter() {
       labels_todo.push((
         Node::border(border_n),
         node,
@@ -41,7 +42,7 @@ pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
     if state.unlabeled_edges.len() == 0 {
       if cfg!(debug_assertions) {
         nodes_todo.extend((0..4).map(|x| Node::border(x)));
-        nodes_todo.extend((0..div.regions).map(|x| Node::region(x)));
+        nodes_todo.extend((0..div.regions()).map(|x| Node::region(x)));
         assert!(flush_todos(&mut state, &mut labels_todo, &mut nodes_todo).is_some());
         assert!(nodes_todo.is_empty());
       }
@@ -86,11 +87,11 @@ fn flush_todos(
           return None;
         };
       }
-      let a_connected_nodes = &state.div.connections[&a];
-      let b_connected_nodes = &state.div.connections[&b];
-      let (c0, c1) = a_connected_nodes.get_items_around(&b);
-      let (d1, d0) = b_connected_nodes.get_items_around(&a);
-      for (&c, &d) in [(c0, d0), (c1, d1)] {
+      let a_connected_nodes = &state.div[a];
+      let b_connected_nodes = &state.div[b];
+      let (c0, c1) = a_connected_nodes.get_items_around(b);
+      let (d1, d0) = b_connected_nodes.get_items_around(a);
+      for (c, d) in [(c0, d0), (c1, d1)] {
         if c == d {
           let a_leg = state.edge_labels.get(&UnorderedPair(a, c));
           let b_leg = state.edge_labels.get(&UnorderedPair(b, c));
@@ -110,7 +111,7 @@ fn flush_todos(
             (false, None, Some(false)) => labels_todo.push((a, c, true)),
             (_, None, Some(_)) => state.ambiguous_edges.push(UnorderedPair(a, c)),
           }
-        } else if state.div.connections[&c].contains_item(&d) {
+        } else if state.div[c].contains_item(d) {
           labels_todo.push((a, c, !label));
           labels_todo.push((b, d, !label));
           labels_todo.push((c, d, label));
@@ -175,8 +176,8 @@ pub fn classify_connected_nodes(
   edge_labels: &EdgeLabels,
 ) -> ConnectedNodesClassification {
   let mut state = ConnectedNodesClassification::default();
-  let connected_nodes = &div.connections[&node];
-  for &connected_node in connected_nodes.iter() {
+  let connected_nodes = &div[node];
+  for connected_node in connected_nodes.iter() {
     let label = edge_labels
       .get(&UnorderedPair(node, connected_node))
       .cloned();
@@ -185,7 +186,7 @@ pub fn classify_connected_nodes(
       Some(false) => &mut state.all_false,
       None => &mut state.all_none,
     }
-    .push(connected_node.clone());
+    .push(connected_node);
     match state.vecs.last_mut() {
       Some((ref mut vec, label2)) if *label2 == label => vec.push(connected_node),
       _ => {

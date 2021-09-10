@@ -1,5 +1,6 @@
 use crate::*;
 use either::Either;
+use std::{collections::hash_map::DefaultHasher, hash::Hasher};
 
 pub fn hash_division(div: &Division) -> u64 {
   struct State<'a> {
@@ -15,12 +16,12 @@ pub fn hash_division(div: &Division) -> u64 {
         div,
         dir,
         hasher: DefaultHasher::new(),
-        node_ids: Vec::with_capacity((div.regions + 4) as usize),
+        node_ids: Vec::with_capacity((div.regions() + 4) as usize),
       };
       visit_node(
         &mut state,
         Node::border(i),
-        &Node::border(i + if dir { 1 } else { 3 }),
+        Node::border(i + if dir { 1 } else { 3 }),
       );
       let new_hash = state.hasher.finish();
       if new_hash < hash {
@@ -29,7 +30,7 @@ pub fn hash_division(div: &Division) -> u64 {
     }
   }
   return hash;
-  fn visit_node(state: &mut State<'_>, node: Node, last: &Node) {
+  fn visit_node(state: &mut State<'_>, node: Node, last: Node) {
     let mut fresh = false;
     let id = state
       .node_ids
@@ -43,10 +44,10 @@ pub fn hash_division(div: &Division) -> u64 {
       });
     state.hasher.write_usize(id);
     if fresh {
-      let connected_nodes = &state.div.connections[&node];
-      for &next in maybe_reverse(connected_nodes.iter_starting_at(last), state.dir) {
-        if &next != last {
-          visit_node(state, next, &node);
+      let connected_nodes = &state.div[node];
+      for next in maybe_reverse(connected_nodes.iter_starting_at(last), state.dir) {
+        if next != last {
+          visit_node(state, next, node);
         }
       }
     }

@@ -1,29 +1,26 @@
-mod circularorder;
+mod connected_nodes;
 mod divide;
 mod division;
 mod generate_layout;
 mod hash_division;
 mod label_edges;
+mod node;
 mod svg;
 mod unorderedpair;
 
-use chashmap::CHashMap;
-pub(crate) use circularorder::*;
+pub(crate) use connected_nodes::*;
 pub(crate) use divide::*;
 pub(crate) use division::*;
 pub(crate) use generate_layout::*;
 pub(crate) use hash_division::*;
 pub(crate) use label_edges::*;
+pub(crate) use node::*;
 pub(crate) use svg::*;
 pub(crate) use unorderedpair::*;
 
+use chashmap::CHashMap;
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use std::{
-  collections::{hash_map::DefaultHasher, HashMap, HashSet, VecDeque},
-  fmt::Debug,
-  hash::{Hash, Hasher},
-  time::Instant,
-};
+use std::{fmt::Debug, time::Instant};
 
 fn main() {
   let start = Instant::now();
