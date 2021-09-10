@@ -26,7 +26,7 @@ fn main() {
   let start = Instant::now();
   let mut divs = CHashMap::new();
   divs.insert(hash_division(&Division::default()), Division::default());
-  for i in 2.. {
+  for i in 2..=5 {
     let start2 = Instant::now();
     std::mem::replace(&mut divs, CHashMap::new())
       .into_iter()
@@ -58,7 +58,7 @@ fn main() {
       start.elapsed()
     );
   }
-  // println!("{}", generate_svg(&divs, n));
+  println!("{}", generate_svg(divs));
 }
 
 unsafe fn ignore_lifetime<T>(ptr: &'_ T) -> &'static T {

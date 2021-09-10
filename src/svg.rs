@@ -1,7 +1,7 @@
 use crate::*;
-use std::{collections::HashMap, fmt::Write};
+use std::fmt::Write;
 
-pub fn generate_svg(divs: &HashMap<u64, Division>) -> String {
+pub fn generate_svg(divs: CHashMap<u64, Division>) -> String {
   let max_row_width = 5;
   let square_size = 100.;
   let padding = 10.;
@@ -12,9 +12,9 @@ pub fn generate_svg(divs: &HashMap<u64, Division>) -> String {
     width as f64 * (square_size + padding) + padding,
     height as f64 * (square_size + padding) + padding
   );
-  for (i, (hash, div)) in divs.iter().enumerate() {
+  for (i, (hash, div)) in divs.into_iter().enumerate() {
     write!(str, r#"<g id="{}">"#, hash).unwrap();
-    let layout = generate_layout(div, &label_edges(div).unwrap());
+    let layout = generate_layout(&div, &label_edges(&div).unwrap());
     for rect in layout {
       let x = i % max_row_width;
       let y = i / max_row_width;
