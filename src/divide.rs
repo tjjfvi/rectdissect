@@ -55,7 +55,7 @@ pub fn divide<'a>(div: &'a Division) -> impl Iterator<Item = Division> + 'a {
 fn _divide(
   div: &Division,
   connected_nodes: &CircularOrder<Node>,
-  region: u32,
+  region: u8,
   cut_0_ind: usize,
   cut_0: &Node,
   cut_1_ind: usize,

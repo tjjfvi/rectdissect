@@ -2,7 +2,7 @@ use crate::*;
 
 #[derive(Clone, Debug)]
 pub struct Division {
-  pub regions: u32,
+  pub regions: u8,
   pub connections: HashMap<Node, CircularOrder<Node>>,
 }
 
@@ -31,7 +31,7 @@ impl Default for Division {
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Node {
   Border(u8),
-  Region(u32),
+  Region(u8),
 }
 
 impl Debug for Node {

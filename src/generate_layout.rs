@@ -23,8 +23,8 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
   let layout_x = generate_1d_layout(div, edge_labels, false);
   let layout_y = generate_1d_layout(div, edge_labels, true);
 
-  debug_assert_eq!(layout_x.len() as u32, div.regions + 1);
-  debug_assert_eq!(layout_y.len() as u32, div.regions + 1);
+  debug_assert_eq!(layout_x.len() as u8, div.regions + 1);
+  debug_assert_eq!(layout_y.len() as u8, div.regions + 1);
 
   return (0..div.regions)
     .map(|region| {

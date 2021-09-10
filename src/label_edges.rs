@@ -164,9 +164,9 @@ pub struct ConnectedNodesClassification {
   pub all_false: Vec<Node>,
   pub all_none: Vec<Node>,
   pub vecs: Vec<(Vec<Node>, Option<bool>)>,
-  pub true_vecs_count: u32,
-  pub false_vecs_count: u32,
-  pub none_vecs_count: u32,
+  pub true_vecs_count: u8,
+  pub false_vecs_count: u8,
+  pub none_vecs_count: u8,
 }
 
 pub fn classify_connected_nodes(
