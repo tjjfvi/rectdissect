@@ -40,8 +40,9 @@ impl<T: Ord + PartialEq> PartialEq for UnorderedPair<T> {
 
 impl<T: Ord + Eq> Eq for UnorderedPair<T> {}
 
-impl<T: Debug> Debug for UnorderedPair<T> {
+impl<T: Ord + Debug> Debug for UnorderedPair<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{:?}-{:?}", self.0, self.1)
+    let ordered: (_, _) = self.into();
+    write!(f, "{:?}-{:?}", ordered.0, ordered.1)
   }
 }

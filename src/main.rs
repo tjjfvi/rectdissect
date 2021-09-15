@@ -52,10 +52,7 @@ fn main() {
         if !divs.contains_key(&hash) {
           let mut any = false;
           for edge_labels in label_edges(&new_div) {
-            edge_labelings.insert(
-              hash_division(&new_div, Some(&edge_labels)),
-              (hash, edge_labels),
-            );
+            edge_labelings.insert(hash_division(&new_div, Some(&edge_labels)), ());
             any = true;
           }
           if any {
@@ -72,7 +69,7 @@ fn main() {
       start.elapsed()
     );
   }
-  println!("{}", generate_svg(divs));
+  println!("{}", generate_svg(divs, edge_labelings));
 }
 
 unsafe fn ignore_lifetime<T>(ptr: &'_ T) -> &'static T {
