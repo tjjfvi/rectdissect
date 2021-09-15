@@ -13,8 +13,8 @@ pub fn generate_svg(divs: CHashMap<u64, Division>) -> String {
     height as f64 * (square_size + padding) + padding
   );
   for (i, (hash, div)) in divs.into_iter().enumerate() {
-    write!(str, r#"<g id="{}">"#, hash).unwrap();
-    let layout = generate_layout(&div, &label_edges(&div).unwrap());
+    write!(str, r#"<g id="{:?}">"#, hash).unwrap();
+    let layout = generate_layout(&div, &label_edges(&div).next().unwrap());
     for rect in layout {
       let x = i % max_row_width;
       let y = i / max_row_width;

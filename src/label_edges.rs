@@ -13,7 +13,14 @@ struct State<'a> {
   unlabeled_edges: HashSet<UnorderedPair<Node>>,
 }
 
-pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
+pub struct LabelEdgesIter<'a> {
+  div: &'a Division,
+  labels_todo: Vec<(Node, Node, bool)>,
+  nodes_todo: Vec<Node>,
+  states: Vec<State<'a>>,
+}
+
+pub fn label_edges(div: &Division) -> LabelEdgesIter<'_> {
   let mut state = State {
     edge_labels: HashMap::new(),
     ambiguous_edges: vec![],
@@ -34,38 +41,55 @@ pub fn label_edges(div: &Division) -> Option<EdgeLabels> {
       ));
     }
   }
-  flush_todos(&mut state, &mut labels_todo, &mut nodes_todo)?;
-  let mut states = vec![state];
-  while let Some(mut state) = states.pop() {
-    debug_assert!(labels_todo.is_empty());
-    debug_assert!(nodes_todo.is_empty());
-    if state.unlabeled_edges.len() == 0 {
-      if cfg!(debug_assertions) {
-        nodes_todo.extend((0..4).map(|x| Node::border(x)));
-        nodes_todo.extend((0..div.regions()).map(|x| Node::region(x)));
-        assert!(flush_todos(&mut state, &mut labels_todo, &mut nodes_todo).is_some());
-        assert!(nodes_todo.is_empty());
+  let states = if flush_todos(&mut state, &mut labels_todo, &mut nodes_todo).is_some() {
+    vec![state]
+  } else {
+    vec![]
+  };
+  LabelEdgesIter {
+    div,
+    labels_todo,
+    nodes_todo,
+    states,
+  }
+}
+
+impl Iterator for LabelEdgesIter<'_> {
+  type Item = EdgeLabels;
+  fn next(&mut self) -> Option<EdgeLabels> {
+    while let Some(mut state) = self.states.pop() {
+      debug_assert!(self.labels_todo.is_empty());
+      debug_assert!(self.nodes_todo.is_empty());
+      if state.unlabeled_edges.len() == 0 {
+        if cfg!(debug_assertions) {
+          self.nodes_todo.extend((0..4).map(|x| Node::border(x)));
+          self
+            .nodes_todo
+            .extend((0..self.div.regions()).map(|x| Node::region(x)));
+          assert!(flush_todos(&mut state, &mut self.labels_todo, &mut self.nodes_todo).is_some());
+          assert!(self.nodes_todo.is_empty());
+        }
+        return Some(state.edge_labels); // All edges have been labeled successfully
       }
-      return Some(state.edge_labels); // All edges have been labeled successfully
-    }
-    let edge = state
-      .ambiguous_edges
-      .pop()
-      .or_else(|| state.unlabeled_edges.iter().next().map(|&x| x))
-      .unwrap();
-    for (guess, state) in [(true, state.clone()), (false, state)] {
-      let mut state = state.clone();
-      labels_todo.push((edge.0, edge.1, guess));
-      match flush_todos(&mut state, &mut labels_todo, &mut nodes_todo) {
-        Some(()) => states.push(state),
-        None => {
-          labels_todo.clear();
-          nodes_todo.clear();
+      let edge = state
+        .ambiguous_edges
+        .pop()
+        .or_else(|| state.unlabeled_edges.iter().next().map(|&x| x))
+        .unwrap();
+      for (guess, state) in [(true, state.clone()), (false, state)] {
+        let mut state = state.clone();
+        self.labels_todo.push((edge.0, edge.1, guess));
+        match flush_todos(&mut state, &mut self.labels_todo, &mut self.nodes_todo) {
+          Some(()) => self.states.push(state),
+          None => {
+            self.labels_todo.clear();
+            self.nodes_todo.clear();
+          }
         }
       }
     }
+    None
   }
-  None
 }
 
 #[must_use]

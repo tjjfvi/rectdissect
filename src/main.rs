@@ -25,8 +25,13 @@ use std::{fmt::Debug, time::Instant};
 fn main() {
   let start = Instant::now();
   let mut divs = CHashMap::new();
-  divs.insert(hash_division(&Division::default()), Division::default());
-  for i in 2..=5 {
+  let edge_labelings = CHashMap::new();
+  divs.insert(
+    hash_division(&Division::default(), None),
+    Division::default(),
+  );
+  for i in 2.. {
+    edge_labelings.clear();
     let start2 = Instant::now();
     std::mem::replace(&mut divs, CHashMap::new())
       .into_iter()
@@ -43,17 +48,26 @@ fn main() {
       })
       .par_bridge()
       .for_each(|new_div| {
-        let hash = hash_division(&new_div);
+        let hash = hash_division(&new_div, None);
         if !divs.contains_key(&hash) {
-          if label_edges(&new_div).is_some() {
+          let mut any = false;
+          for edge_labels in label_edges(&new_div) {
+            edge_labelings.insert(
+              hash_division(&new_div, Some(&edge_labels)),
+              (hash, edge_labels),
+            );
+            any = true;
+          }
+          if any {
             divs.insert(hash, new_div);
           }
         }
       });
     eprintln!(
-      "{}: {} (took {:.1?}, total {:.1?})",
+      "{}: {}/{} (took {:.1?}, total {:.1?})",
       i,
       divs.len(),
+      edge_labelings.len(),
       start2.elapsed(),
       start.elapsed()
     );
