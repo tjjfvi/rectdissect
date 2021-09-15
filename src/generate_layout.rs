@@ -22,29 +22,48 @@ impl Rect {
 pub type Layout = Vec<Rect>;
 
 pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
-  let layout_x = generate_1d_layout(div, edge_labels, false);
-  let layout_y = generate_1d_layout(div, edge_labels, true);
+  let layout_x_0 = generate_1d_layout(div, edge_labels, 0);
+  let layout_x_1 = generate_1d_layout(div, edge_labels, 2);
+  let layout_y_0 = generate_1d_layout(div, edge_labels, 1);
+  let layout_y_1 = generate_1d_layout(div, edge_labels, 3);
 
-  debug_assert_eq!(layout_x.len() as u8, div.regions() + 1);
-  debug_assert_eq!(layout_y.len() as u8, div.regions() + 1);
+  debug_assert_eq!(layout_x_0.len() as u8, div.regions() + 1);
+  debug_assert_eq!(layout_x_1.len() as u8, div.regions() + 1);
+  debug_assert_eq!(layout_y_0.len() as u8, div.regions() + 1);
+  debug_assert_eq!(layout_y_1.len() as u8, div.regions() + 1);
 
   return (0..div.regions())
     .map(|region| {
-      let [x1, x2] = layout_x[&Node::region(region)];
-      let [y1, y2] = layout_y[&Node::region(region)];
-      debug_assert!(!x1.is_nan() && !x2.is_nan() && !y1.is_nan() && !y2.is_nan());
-      Rect { x1, y1, x2, y2 }
+      let [x1_0, x2_0] = layout_x_0[&Node::region(region)];
+      let [x2_1, x1_1] = layout_x_1[&Node::region(region)];
+      let [y1_0, y2_0] = layout_y_0[&Node::region(region)];
+      let [y2_1, y1_1] = layout_y_1[&Node::region(region)];
+      debug_assert!(!x1_0.is_nan() && !x2_0.is_nan() && !y1_0.is_nan() && !y2_0.is_nan());
+      debug_assert!(!x1_1.is_nan() && !x2_1.is_nan() && !y1_1.is_nan() && !y2_1.is_nan());
+      Rect {
+        x1: (x1_0 + x1_1) / 2.,
+        x2: (x2_0 + x2_1) / 2.,
+        y1: (y1_0 + y1_1) / 2.,
+        y2: (y2_0 + y2_1) / 2.,
+      }
     })
     .collect();
 
   fn generate_1d_layout(
     div: &Division,
     edge_labels: &EdgeLabels,
-    axis: bool,
+    root: u8,
   ) -> HashMap<Node, [f64; 2]> {
-    let root = if axis { 0 } else { 3 };
+    let axis = root % 2 == 0;
     let mut ranges = HashMap::new();
-    ranges.insert(Node::border(root), [0.0_f64, 1.0_f64]);
+    ranges.insert(
+      Node::border(root),
+      if root > 1 {
+        [1.0_f64, 0.0_f64]
+      } else {
+        [0., 1.]
+      },
+    );
     let mut node_queue = VecDeque::new();
     node_queue.push_back((Node::border(root), Node::border(root)));
     while let Some((node, last)) = node_queue.pop_front() {
