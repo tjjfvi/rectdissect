@@ -9,32 +9,30 @@ pub fn hash_division(div: &Division, edge_labels: Option<&EdgeLabels>) -> u64 {
   struct State<'a> {
     div: &'a Division,
     edge_labels: Option<&'a EdgeLabels>,
-    rev: bool,
+    start: u8,
     dir: bool,
     hasher: DefaultHasher,
     node_ids: Vec<Node>,
   }
   let mut hash = u64::MAX;
-  for i in 0..(div.regions() + 4) {
-    let node = Node(i);
-    for prev in div[node].iter() {
-      for dir in [true, false] {
-        for rev in [true, false] {
-          let mut state = State {
-            div,
-            edge_labels,
-            // start,
-            rev,
-            dir,
-            hasher: DefaultHasher::new(),
-            node_ids: Vec::with_capacity((div.regions() + 4) as usize),
-          };
-          visit_node(&mut state, node, prev);
-          let new_hash = state.hasher.finish();
-          if new_hash < hash {
-            hash = new_hash
-          }
-        }
+  for start in 0..4 {
+    for dir in [true, false] {
+      let mut state = State {
+        div,
+        edge_labels,
+        start,
+        dir,
+        hasher: DefaultHasher::new(),
+        node_ids: Vec::with_capacity((div.regions() + 4) as usize),
+      };
+      visit_node(
+        &mut state,
+        Node::border(start),
+        Node::border(start + if dir { 3 } else { 1 }),
+      );
+      let new_hash = state.hasher.finish();
+      if new_hash < hash {
+        hash = new_hash
       }
     }
   }
@@ -52,14 +50,14 @@ pub fn hash_division(div: &Division, edge_labels: Option<&EdgeLabels>) -> u64 {
         id
       });
     state.hasher.write_usize(id);
-    <Option<u32>>::None.hash(&mut state.hasher);
-    state
-      .edge_labels
-      .and_then(|x| x.get(&UnorderedPair(node, last)))
-      .map(|x| x == &state.rev)
-      .hash(&mut state.hasher);
+    if let Some(x) = state.edge_labels {
+      x.get(&UnorderedPair(node, last))
+        .map(|&x| x == (state.start % 2 == 0))
+        .hash(&mut state.hasher);
+    }
     if fresh {
       let connected_nodes = &state.div[node];
+      state.hasher.write_u8(connected_nodes.len());
       for next in maybe_reverse(connected_nodes.iter_starting_at(last), state.dir) {
         if next != last {
           visit_node(state, next, node);

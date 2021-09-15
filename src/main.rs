@@ -30,7 +30,7 @@ fn main() {
     hash_division(&Division::default(), None),
     Division::default(),
   );
-  for i in 2..=5 {
+  for i in 2.. {
     edge_labelings.clear();
     let start2 = Instant::now();
     std::mem::replace(&mut divs, CHashMap::new())
