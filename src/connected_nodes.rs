@@ -123,20 +123,47 @@ impl<'a> Iterator for CircularOrderIter<'a> {
       None
     }
   }
+
+  fn size_hint(&self) -> (usize, Option<usize>) {
+    if let Some((cur, end)) = self.1 {
+      let len = if end > cur {
+        end - cur
+      } else {
+        self.0.len() + end - cur
+      } as usize;
+      (len, Some(len))
+    } else {
+      (0, Some(0))
+    }
+  }
 }
 
 impl<'a> DoubleEndedIterator for CircularOrderIter<'a> {
   fn next_back(&mut self) -> Option<Self::Item> {
-    if let Some((start, cur)) = self.1 {
-      let next = (cur + self.0.len() - 1) % self.0.len();
-      self.1 = if next == start {
+    if let Some((start, end)) = self.1 {
+      let cur = (end + self.0.len() - 1) % self.0.len();
+      self.1 = if cur == start {
         None
       } else {
-        Some((start, next))
+        Some((start, cur))
       };
       Some(self.0.index(cur))
     } else {
       None
+    }
+  }
+}
+
+impl<'a> ExactSizeIterator for CircularOrderIter<'a> {
+  fn len(&self) -> usize {
+    if let Some((cur, end)) = self.1 {
+      if end > cur {
+        (end - cur) as usize
+      } else {
+        (self.0.len() + end - cur) as usize
+      }
+    } else {
+      0
     }
   }
 }

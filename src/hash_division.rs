@@ -58,10 +58,8 @@ pub fn hash_division(div: &Division, edge_labels: Option<&EdgeLabels>) -> u64 {
     if fresh {
       let connected_nodes = &state.div[node];
       state.hasher.write_u8(connected_nodes.len());
-      for next in maybe_reverse(connected_nodes.iter_starting_at(last), state.dir) {
-        if next != last {
-          visit_node(state, next, node);
-        }
+      for next in maybe_reverse(connected_nodes.iter_starting_at(last).skip(1), state.dir) {
+        visit_node(state, next, node);
       }
     }
     fn maybe_reverse<T, I: DoubleEndedIterator<Item = T>>(
