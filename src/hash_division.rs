@@ -23,7 +23,7 @@ pub fn hash_division(div: &Division, edge_labels: Option<&EdgeLabels>) -> u64 {
         start,
         dir,
         hasher: DefaultHasher::new(),
-        node_ids: Vec::with_capacity((div.regions() + 4) as usize),
+        node_ids: Vec::with_capacity(div.nodes().len()),
       };
       visit_node(
         &mut state,

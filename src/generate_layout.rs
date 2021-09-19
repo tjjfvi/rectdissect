@@ -27,17 +27,18 @@ pub fn generate_layout(div: &Division, edge_labels: &EdgeLabels) -> Layout {
   let layout_y_0 = generate_1d_layout(div, edge_labels, 1);
   let layout_y_1 = generate_1d_layout(div, edge_labels, 3);
 
-  debug_assert_eq!(layout_x_0.len() as u8, div.regions() + 1);
-  debug_assert_eq!(layout_x_1.len() as u8, div.regions() + 1);
-  debug_assert_eq!(layout_y_0.len() as u8, div.regions() + 1);
-  debug_assert_eq!(layout_y_1.len() as u8, div.regions() + 1);
+  debug_assert_eq!(layout_x_0.len() as u8, div.num_regions() + 1);
+  debug_assert_eq!(layout_x_1.len() as u8, div.num_regions() + 1);
+  debug_assert_eq!(layout_y_0.len() as u8, div.num_regions() + 1);
+  debug_assert_eq!(layout_y_1.len() as u8, div.num_regions() + 1);
 
-  return (0..div.regions())
+  return div
+    .regions()
     .map(|region| {
-      let [x1_0, x2_0] = layout_x_0[&Node::region(region)];
-      let [x2_1, x1_1] = layout_x_1[&Node::region(region)];
-      let [y1_0, y2_0] = layout_y_0[&Node::region(region)];
-      let [y2_1, y1_1] = layout_y_1[&Node::region(region)];
+      let [x1_0, x2_0] = layout_x_0[&region];
+      let [x2_1, x1_1] = layout_x_1[&region];
+      let [y1_0, y2_0] = layout_y_0[&region];
+      let [y2_1, y1_1] = layout_y_1[&region];
       debug_assert!(!x1_0.is_nan() && !x2_0.is_nan() && !y1_0.is_nan() && !y2_0.is_nan());
       debug_assert!(!x1_1.is_nan() && !x2_1.is_nan() && !y1_1.is_nan() && !y2_1.is_nan());
       Rect {

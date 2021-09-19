@@ -25,8 +25,8 @@ pub fn label_edges(div: &Division) -> LabelEdgesIter<'_> {
     edge_labels: HashMap::new(),
     ambiguous_edges: vec![],
     div,
-    unlabeled_edges: (0..div.regions() + 4)
-      .map(|x| Node(x))
+    unlabeled_edges: div
+      .nodes()
       .flat_map(|a| div[a].iter().map(move |b| UnorderedPair(a, b)))
       .collect(),
   };
@@ -62,10 +62,7 @@ impl Iterator for LabelEdgesIter<'_> {
       debug_assert!(self.nodes_todo.is_empty());
       if state.unlabeled_edges.len() == 0 {
         if cfg!(debug_assertions) {
-          self.nodes_todo.extend((0..4).map(|x| Node::border(x)));
-          self
-            .nodes_todo
-            .extend((0..self.div.regions()).map(|x| Node::region(x)));
+          self.nodes_todo.extend(self.div.regions());
           assert!(flush_todos(&mut state, &mut self.labels_todo, &mut self.nodes_todo).is_some());
           assert!(self.nodes_todo.is_empty());
         }

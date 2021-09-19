@@ -40,11 +40,17 @@ impl Division {
   pub const fn data_size(regions: u8, max_connections: u8) -> usize {
     (regions + 4) as usize * (max_connections + 1) as usize
   }
-  pub fn regions(&self) -> u8 {
+  pub fn num_regions(&self) -> u8 {
     self.regions
+  }
+  pub fn regions(&self) -> std::iter::Map<std::ops::Range<u8>, fn(u8) -> Node> {
+    (0..self.regions).map(Node::region)
   }
   pub fn max_connections(&self) -> u8 {
     self.max_connections
+  }
+  pub fn nodes(&self) -> std::iter::Map<std::ops::Range<u8>, fn(u8) -> Node> {
+    (0..self.regions + 4).map(Node)
   }
 }
 
@@ -90,8 +96,7 @@ impl IndexMut<Node> for Division {
 impl Debug for Division {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let mut debug_map = f.debug_map();
-    for i in 0..self.regions + 4 {
-      let node = Node(i);
+    for node in self.nodes() {
       debug_map.entry(&node, &self[node]);
     }
     debug_map.finish()

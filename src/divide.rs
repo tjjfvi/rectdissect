@@ -1,8 +1,8 @@
 use crate::*;
 
 pub fn divide<'a>(div: &'a Division) -> impl Iterator<Item = Division> + 'a {
-  (0..div.regions()).flat_map(move |region| {
-    let connected_nodes = &div[Node::region(region)];
+  div.regions().flat_map(move |region| {
+    let connected_nodes = &div[region];
     connected_nodes
       .iter()
       .enumerate()
@@ -55,7 +55,7 @@ pub fn divide<'a>(div: &'a Division) -> impl Iterator<Item = Division> + 'a {
 fn _divide(
   div: &Division,
   connected_nodes: &ConnectedNodes,
-  region: u8,
+  region: Node,
   cut_0_ind: usize,
   cut_0: Node,
   cut_1_ind: usize,
@@ -63,26 +63,22 @@ fn _divide(
   share_0: bool,
   share_1: bool,
 ) -> Division {
-  let new_region = div.regions();
+  let new_region = Node::region(div.num_regions());
   let expand = false
     || (share_0 && div[cut_0].len() == div.max_connections())
     || (share_1 && div[cut_1].len() == div.max_connections());
   unsafe {
-    let mut new_div = Division::new_raw(div.regions() + 1, div.max_connections() + expand as u8);
-    for i in 0..(new_div.regions() + 4) {
-      let node = Node(i);
-      let old_order = &div[if node == Node::region(new_region) {
-        Node::region(region)
-      } else {
-        node
-      }];
+    let mut new_div =
+      Division::new_raw(div.num_regions() + 1, div.max_connections() + expand as u8);
+    for node in new_div.nodes() {
+      let old_order = &div[if node == new_region { region } else { node }];
       let order = &mut new_div[node];
       std::ptr::copy_nonoverlapping::<u8>(
         old_order as *const _ as _,
         order as *mut _ as _,
         (div.max_connections() + 1) as usize,
       );
-      if node == Node::region(region) {
+      if node == region {
         order.delete_items_between(
           cut_0,
           if share_1 {
@@ -91,8 +87,8 @@ fn _divide(
             order.get_item_after(cut_1)
           },
         );
-        order.insert_item_after(cut_0, Node::region(new_region));
-      } else if node == Node::region(new_region) {
+        order.insert_item_after(cut_0, new_region);
+      } else if node == new_region {
         // dbg!(&order);
         order.delete_items_between(
           cut_1,
@@ -102,7 +98,7 @@ fn _divide(
             order.get_item_after(cut_0)
           },
         );
-        order.insert_item_after(cut_1, Node::region(region));
+        order.insert_item_after(cut_1, region);
       }
     }
     for (i, node) in connected_nodes.iter().enumerate() {
@@ -110,14 +106,14 @@ fn _divide(
       if i == cut_0_ind && share_0 || i == cut_1_ind && share_1 {
         order.insert_item_after(
           if i == cut_0_ind {
-            order.get_item_before(Node::region(region))
+            order.get_item_before(region)
           } else {
-            Node::region(region)
+            region
           },
-          Node::region(new_region),
+          new_region,
         );
       } else if i > cut_0_ind && i <= cut_1_ind {
-        order.replace_item(Node::region(region), Node::region(new_region));
+        order.replace_item(region, new_region);
       }
     }
     new_div
