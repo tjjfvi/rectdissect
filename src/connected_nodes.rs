@@ -125,16 +125,8 @@ impl<'a> Iterator for CircularOrderIter<'a> {
   }
 
   fn size_hint(&self) -> (usize, Option<usize>) {
-    if let Some((cur, end)) = self.1 {
-      let len = if end > cur {
-        end - cur
-      } else {
-        self.0.len() + end - cur
-      } as usize;
-      (len, Some(len))
-    } else {
-      (0, Some(0))
-    }
+    let len = self.len();
+    (len, Some(len))
   }
 }
 

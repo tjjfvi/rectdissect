@@ -117,14 +117,9 @@ fn flush_todos(
           let a_leg = state.edge_labels.get(&UnorderedPair(a, c));
           let b_leg = state.edge_labels.get(&UnorderedPair(b, c));
           match (label, a_leg, b_leg) {
-            (_, None, None)
-            | (false, Some(true), Some(true))
-            | (true, Some(false), Some(true))
-            | (true, Some(true), Some(false))
-            | (true, Some(false), Some(false))
-            | (false, Some(true), Some(false))
-            | (false, Some(false), Some(true)) => {}
             (false, Some(false), Some(false)) | (true, Some(true), Some(true)) => return None,
+            (_, Some(_), Some(_)) => {}
+            (_, None, None) => {}
             (true, Some(true), None) => labels_todo.push((b, c, false)),
             (false, Some(false), None) => labels_todo.push((b, c, true)),
             (_, Some(_), None) => state.ambiguous_edges.push(UnorderedPair(b, c)),
@@ -197,11 +192,10 @@ pub fn classify_connected_nodes(
   edge_labels: &EdgeLabels,
 ) -> ConnectedNodesClassification {
   let mut state = ConnectedNodesClassification::default();
-  let connected_nodes = &div[node];
-  for connected_node in connected_nodes.iter() {
+  for connected_node in div[node].iter() {
     let label = edge_labels
       .get(&UnorderedPair(node, connected_node))
-      .cloned();
+      .copied();
     match label {
       Some(true) => &mut state.all_true,
       Some(false) => &mut state.all_false,
