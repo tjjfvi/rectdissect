@@ -1,12 +1,21 @@
 use crate::*;
 use std::{collections::HashSet, fmt::Write};
 
-pub fn generate_svg(divs: CHashMap<u64, Division>, edge_labelings: CHashMap<u64, ()>) -> String {
+pub fn generate_svg(
+  divs: CHashMap<u64, Division>,
+  oeis_mode: bool,
+  oeis_count: CHashMap<u64, ()>,
+) -> String {
+  let count = if oeis_mode {
+    oeis_count.len()
+  } else {
+    divs.len()
+  };
   let max_row_width = 5;
   let square_size = 100.;
   let padding = 10.;
-  let width = std::cmp::min(edge_labelings.len(), max_row_width);
-  let height = (edge_labelings.len() + max_row_width - 1) / max_row_width;
+  let width = std::cmp::min(count, max_row_width);
+  let height = (count + max_row_width - 1) / max_row_width;
   let mut str = format!(
     r#"<svg viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg" style="height: auto">"#,
     width as f64 * (square_size + padding) + padding,
@@ -36,6 +45,9 @@ pub fn generate_svg(divs: CHashMap<u64, Division>, edge_labelings: CHashMap<u64,
       }
       write!(str, r#"</g>"#).unwrap();
       i += 1;
+      if !oeis_mode {
+        break;
+      }
     }
   }
   str += "</svg>";

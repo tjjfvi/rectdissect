@@ -23,45 +23,68 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::{fmt::Debug, time::Instant};
 
 fn main() {
+  let oeis_mode = false;
+
   let start = Instant::now();
 
   let mut divs = CHashMap::new();
   let oeis_count = CHashMap::new();
 
-  add_div(Division::default(), &divs, &oeis_count);
-  print_state(&divs, 1, start, start);
+  add_div(&divs, oeis_mode, &oeis_count, Division::default());
+  print_state(&divs, oeis_mode, &oeis_count, 1, start, start);
 
-  for i in 2.. {
+  for i in 2..=5 {
     oeis_count.clear();
     let round_start = Instant::now();
     std::mem::replace(&mut divs, CHashMap::new())
       .into_iter()
       .flat_map(|(_, div)| iter_with_owned(div, divide))
       .par_bridge()
-      .for_each(|div| add_div(div, &divs, &oeis_count));
-    print_state(&divs, i, start, round_start);
+      .for_each(|div| add_div(&divs, oeis_mode, &oeis_count, div));
+    print_state(&divs, oeis_mode, &oeis_count, i, start, round_start);
   }
 
-  println!("{}", generate_svg(divs, oeis_count));
+  println!("{}", generate_svg(divs, oeis_mode, oeis_count));
 
-  fn print_state(divs: &CHashMap<u64, Division>, i: u8, start: Instant, round_start: Instant) {
+  fn print_state(
+    divs: &CHashMap<u64, Division>,
+    oeis_mode: bool,
+    oeis_count: &CHashMap<u64, ()>,
+    i: u8,
+    start: Instant,
+    round_start: Instant,
+  ) {
     let now = Instant::now();
     eprintln!(
-      "{:>2}: {:<10} {:>10} {:>10}",
+      "{:>2}: {:<10}{} {:>10} {:>10}",
       i,
       divs.len(),
+      if oeis_mode {
+        format!(" {:<10}", oeis_count.len())
+      } else {
+        "".to_string()
+      },
       format!("{:.1?}", now - round_start),
       format!("{:.1?}", now - start),
     );
   }
 
-  fn add_div(div: Division, divs: &CHashMap<u64, Division>, edge_labelings: &CHashMap<u64, ()>) {
+  fn add_div(
+    divs: &CHashMap<u64, Division>,
+    oeis_mode: bool,
+    oeis_count: &CHashMap<u64, ()>,
+    div: Division,
+  ) {
     let hash = hash_division(&div, None);
     if !divs.contains_key(&hash) {
       let mut any = false;
       for edge_labels in label_edges(&div) {
-        edge_labelings.insert(hash_division(&div, Some(&edge_labels)), ());
         any = true;
+        if oeis_mode {
+          oeis_count.insert(hash_division(&div, Some(&edge_labels)), ());
+        } else {
+          break;
+        }
       }
       if any {
         divs.insert(hash, div);
