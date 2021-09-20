@@ -26,29 +26,34 @@ fn main() {
   let start = Instant::now();
 
   let mut divs = CHashMap::new();
-  let edge_labelings = CHashMap::new();
+  let oeis_count = CHashMap::new();
 
-  add_div(Division::default(), &divs, &edge_labelings);
+  add_div(Division::default(), &divs, &oeis_count);
+  print_state(&divs, 1, start, start);
 
-  for i in 2..=9 {
-    edge_labelings.clear();
-    let start2 = Instant::now();
+  for i in 2.. {
+    oeis_count.clear();
+    let round_start = Instant::now();
     std::mem::replace(&mut divs, CHashMap::new())
       .into_iter()
       .flat_map(|(_, div)| iter_with_owned(div, divide))
       .par_bridge()
-      .for_each(|div| add_div(div, &divs, &edge_labelings));
-    eprintln!(
-      "{}: {}/{} (took {:.1?}, total {:.1?})",
-      i,
-      divs.len(),
-      edge_labelings.len(),
-      start2.elapsed(),
-      start.elapsed()
-    );
+      .for_each(|div| add_div(div, &divs, &oeis_count));
+    print_state(&divs, i, start, round_start);
   }
 
-  println!("{}", generate_svg(divs, edge_labelings));
+  println!("{}", generate_svg(divs, oeis_count));
+
+  fn print_state(divs: &CHashMap<u64, Division>, i: u8, start: Instant, round_start: Instant) {
+    let now = Instant::now();
+    eprintln!(
+      "{:>2}: {:<10} {:>10} {:>10}",
+      i,
+      divs.len(),
+      format!("{:.1?}", now - round_start),
+      format!("{:.1?}", now - start),
+    );
+  }
 
   fn add_div(div: Division, divs: &CHashMap<u64, Division>, edge_labelings: &CHashMap<u64, ()>) {
     let hash = hash_division(&div, None);
