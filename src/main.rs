@@ -19,6 +19,7 @@ pub(crate) use svg::*;
 pub(crate) use unorderedpair::*;
 
 use chashmap::CHashMap;
+use helper_fn::{helper_fn, use_helper_fn};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::{fmt::Debug, time::Instant};
 
@@ -30,8 +31,13 @@ fn main() {
   let mut divs = CHashMap::new();
   let oeis_count = CHashMap::new();
 
-  add_div(&divs, oeis_mode, &oeis_count, Division::default());
-  print_state(&divs, oeis_mode, &oeis_count, 1, start, start);
+  use_helper_fn! {
+    print_state(&divs, oeis_mode, &oeis_count),
+    add_div(&divs, oeis_mode, &oeis_count),
+  }
+
+  add_div!(Division::default());
+  print_state!(1, start, start);
 
   for i in 2..=5 {
     oeis_count.clear();
@@ -40,20 +46,18 @@ fn main() {
       .into_iter()
       .flat_map(|(_, div)| iter_with_owned(div, divide))
       .par_bridge()
-      .for_each(|div| add_div(&divs, oeis_mode, &oeis_count, div));
-    print_state(&divs, oeis_mode, &oeis_count, i, start, round_start);
+      .for_each(|div| add_div!(div));
+    print_state!(i, start, round_start);
   }
 
   println!("{}", generate_svg(divs, oeis_mode, oeis_count));
 
-  fn print_state(
-    divs: &CHashMap<u64, Division>,
+  #[helper_fn(
+    &divs: CHashMap<u64, Division>,
     oeis_mode: bool,
-    oeis_count: &CHashMap<u64, ()>,
-    i: u8,
-    start: Instant,
-    round_start: Instant,
-  ) {
+    &oeis_count: CHashMap<u64, ()>,
+  )]
+  fn print_state(i: u8, start: Instant, round_start: Instant) {
     let now = Instant::now();
     eprintln!(
       "{:>2}: {:<10}{} {:>10} {:>10}",
@@ -69,12 +73,12 @@ fn main() {
     );
   }
 
-  fn add_div(
-    divs: &CHashMap<u64, Division>,
+  #[helper_fn(
+    &divs: CHashMap<u64, Division>,
     oeis_mode: bool,
-    oeis_count: &CHashMap<u64, ()>,
-    div: Division,
-  ) {
+    &oeis_count: CHashMap<u64, ()>,
+  )]
+  fn add_div(div: Division) {
     let hash = hash_division(&div, None);
     if !divs.contains_key(&hash) {
       let mut any = false;
